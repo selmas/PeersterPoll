@@ -37,7 +37,6 @@ type MessageSet struct {
 	Set	map[string][]proto.PeerMessage
 }
 
-
 type Gossiper struct {
 	Name		string
 	LastUid		uint32
@@ -135,8 +134,8 @@ func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *proto.StatusPacket)
 	printPeers(gossiper)
 }
 
-func printFlippedCoin(addr *net.UDPAddr) {
-	fmt.Println("FLIPPED COIN sending rumor to", addr.String())
+func printFlippedCoin(addr *net.UDPAddr, typeOfFlip string) {
+	fmt.Println("FLIPPED COIN sending", typeOfFlip, "to", addr.String())
 }
 
 func printInSyncWith(addr *net.UDPAddr) {
@@ -162,11 +161,15 @@ func printPeers(gossiper *Gossiper) {
 	fmt.Println(str)
 }
 
-func getRandomPeer(peers *PeerSet) *net.UDPAddr {
+func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	peers.RLock()
-	var addr *net.UDPAddr
+	var addr *net.UDPAddr = nil
 	for peer := range peers.Set {
-		 addr = parseAddr(peer)
+		if peer == butNotThisPeer.String() {
+			continue;
+		}
+
+		addr = parseAddr(peer)
 	}
 	peers.RUnlock()
 
@@ -191,12 +194,12 @@ func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *proto.RumorMessage,
 	server.Conn.WriteToUDP(toSend, peer)
 }
 
-func sendRumor(gossiper *Gossiper, msg *proto.RumorMessage) {
+func sendRumor(gossiper *Gossiper, msg *proto.RumorMessage, fromPeer *net.UDPAddr) {
 	for {
-		peer := getRandomPeer(&gossiper.Peers)
+		peer := getRandomPeer(&gossiper.Peers, fromPeer)
 		writeMsgToUDP(gossiper.Server, peer, msg, nil)
 
-		printFlippedCoin(peer)
+		printFlippedCoin(peer, "rumor")
 		if rand.Intn(2) == 0 {
 			break;
 		}
@@ -217,7 +220,7 @@ func handleClientMessage(gossiper *Gossiper, _ *net.UDPAddr, pkg proto.GossipPac
 	}
 
 	storeRumor(gossiper, msg)
-	sendRumor(gossiper, msg)
+	sendRumor(gossiper, msg, nil)
 }
 
 func peerIsAheadOfUs(gossiper *Gossiper, s *proto.StatusPacket) bool {
@@ -230,7 +233,7 @@ func peerIsAheadOfUs(gossiper *Gossiper, s *proto.StatusPacket) bool {
 			return true
 		}
 
-		if uint32(len(msgs)) < status.NextID {
+		if uint32(len(msgs)) < (status.NextID - 1) {
 			return true
 		}
 	}
@@ -240,68 +243,86 @@ func peerIsAheadOfUs(gossiper *Gossiper, s *proto.StatusPacket) bool {
 
 func getWantedRumor(gossiper *Gossiper, s *proto.StatusPacket) *proto.RumorMessage {
 	gossiper.Messages.RLock()
-	for _, status := range s.Want {
-		msgs, found := gossiper.Messages.Set[status.Identifier]
-
-		if !found {
-			continue
+	for origin, msgs := range gossiper.Messages.Set {
+		var status *proto.PeerStatus = nil
+		for _, current := range s.Want {
+			if current.Identifier == origin {
+				status = &current
+			}
 		}
 
-		if uint32(len(msgs)) >= status.NextID {
-			msg := msgs[status.NextID - 1]
+		if status == nil || uint32(len(msgs)) >= status.NextID {
+			var pos uint
+			if status == nil {
+				pos = 0
+			} else {
+				pos = uint(status.NextID) - 1
+			}
+
+			msg := msgs[pos]
 			gossiper.Messages.RUnlock()
 			return &proto.RumorMessage{
-				Origin:		status.Identifier,
+				Origin:		origin,
 				PeerMessage:	msg,
 			}
 		}
 	}
 
 	gossiper.Messages.RUnlock()
+
 	return nil
 }
 
 func getStatus(gossiper *Gossiper) *proto.StatusPacket {
-	gossiper.Messages.RLock()
-	wanted := make([]proto.PeerStatus, len(gossiper.Messages.Set))
+	gossiper.Messages.Lock()
 
+	wanted := make([]proto.PeerStatus, len(gossiper.Messages.Set))
+	i := 0
 	for origin, msgs := range gossiper.Messages.Set {
-		wanted = append(wanted, proto.PeerStatus{
+		wanted[i] = proto.PeerStatus{
 			Identifier:	origin,
 			NextID:		uint32(len(msgs)) + 1,
-		})
-	}
-	gossiper.Messages.RUnlock()
+		}
 
-	return &proto.StatusPacket{
+		i++
+	}
+
+	gossiper.Messages.Unlock()
+
+	msg := &proto.StatusPacket{
 		Want:	wanted,
 	}
+
+	return msg
 }
 
 func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, msg *proto.StatusPacket) {
 	rumor := getWantedRumor(gossiper, msg)
 
 	if rumor != nil {
-		println(peer, "is behind")
 		writeMsgToUDP(gossiper.Server, peer, rumor, nil)
 	} else if peerIsAheadOfUs(gossiper, msg) {
-		println(peer, "is ahead")
 		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper))
 	} else {
 		printInSyncWith(peer)
 	}
 }
 
-func storeRumor(gossiper *Gossiper, rumor *proto.RumorMessage) {
+func storeRumor(gossiper *Gossiper, rumor *proto.RumorMessage) bool {
+	added := false
+
 	gossiper.Messages.Lock()
 
 	msgs := gossiper.Messages.Set[rumor.Origin]
 	if rumor.PeerMessage.ID > uint32(len(msgs)) {
 		msgs = append(msgs, rumor.PeerMessage)
+		added = true
 	}
 	gossiper.Messages.Set[rumor.Origin] = msgs
 
 	gossiper.Messages.Unlock()
+
+	return added
 }
 
 func handlePeersterMessage(gossiper *Gossiper, peerAddr *net.UDPAddr, pkg proto.GossipPacket) {
@@ -311,7 +332,10 @@ func handlePeersterMessage(gossiper *Gossiper, peerAddr *net.UDPAddr, pkg proto.
 
 	if pkg.Rumor != nil {
 		printRumor(gossiper, peerAddr, pkg.Rumor)
-		storeRumor(gossiper, pkg.Rumor)
+		added := storeRumor(gossiper, pkg.Rumor)
+		if added {
+			sendRumor(gossiper, pkg.Rumor, peerAddr)
+		}
 	} else if pkg.Status != nil {
 		printStatus(gossiper, peerAddr, pkg.Status)
 		syncStatus(gossiper, peerAddr, pkg.Status)
@@ -323,7 +347,7 @@ func handlePeersterMessage(gossiper *Gossiper, peerAddr *net.UDPAddr, pkg proto.
 func parseAddr(str string) *net.UDPAddr {
 	addr, err := net.ResolveUDPAddr("udp", str)
 	if err != nil {
-		log.Fatal("invalide peer \"", str, "\": ", err)
+		log.Fatal("invalid peer \"", str, "\": ", err)
 	}
 
 	return addr
@@ -335,7 +359,8 @@ func antiEntropy(gossiper *Gossiper) {
 	for {
 		_ = <-ticker.C
 
-		peer := getRandomPeer(&gossiper.Peers)
+		peer := getRandomPeer(&gossiper.Peers, nil)
+		printFlippedCoin(peer, "status")
 		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper))
 	}
 }
@@ -344,21 +369,22 @@ func main() {
 	apiPort := flag.String("UIPort", "10000", "port for the client to connect")
 	gossipPort := flag.String("gossipPort", "127.0.0.1:5000", "port to connect the gossiper server")
 	name := flag.String("name", "nodeA", "server identifier")
-	peersStr := flag.String("peers", "127.0.0.1:5001,10.1.1.7:5002", "underscore separated list of peers")
+	peersStr := flag.String("peers", "127.0.0.1:5001_10.1.1.7:5002", "underscore separated list of peers")
 	flag.Parse()
 
 	gossiper := NewGossiper(*name, NewServer(*gossipPort))
 	defer gossiper.Server.Conn.Close()
 
 	for _, peer := range strings.Split(*peersStr, "_") {
+		_ = parseAddr(peer)
 		gossiper.Peers.Set[peer] = true
 	}
 
 	api := NewAPI(NewServer(":" + *apiPort))
 	defer api.Server.Conn.Close()
 
-	// one should stay main threaded to avoid exiting
-	runServer(gossiper, api.Server, handleClientMessage)
-	//runServer(gossiper, gossiper.Server, handlePeersterMessage)
-	//antiEntropy(gossiper)
+	// one should stay main thread'ed to avoid exiting
+	go runServer(gossiper, api.Server, handleClientMessage)
+	go runServer(gossiper, gossiper.Server, handlePeersterMessage)
+	antiEntropy(gossiper)
 }
