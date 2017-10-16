@@ -48,6 +48,7 @@ sleep 1
 ./client/client -UIPort=12351 -msg=$message_c3
 
 sleep 5
+sleep 2m
 pkill -f gossiper 
 
 
@@ -99,21 +100,29 @@ do
 	msgLine4="RUMOR origin B from 127.0.0.1:[0-9]{4} ID 2 contents $message_c2_2"
 	msgLine5="RUMOR origin G from 127.0.0.1:[0-9]{4} ID 1 contents $message_c3"
 
-	if !(grep -Eq "$msgLine1" "${outputFiles[$i]}") ; then
-        failed="T"
-    fi
-	if !(grep -Eq "$msgLine2" "${outputFiles[$i]}") ; then
-        failed="T"
-    fi
-	if !(grep -Eq "$msgLine3" "${outputFiles[$i]}") ; then
-        failed="T"
-    fi
-	if !(grep -Eq "$msgLine4" "${outputFiles[$i]}") ; then
-        failed="T"
-    fi
-	if !(grep -Eq "$msgLine5" "${outputFiles[$i]}") ; then
-        failed="T"
-    fi
+	if [[ "$gossipPort" != 5004 ]] ; then
+		if !(grep -Eq "$msgLine1" "${outputFiles[$i]}") ; then
+        	failed="T"
+    	fi
+		if !(grep -Eq "$msgLine2" "${outputFiles[$i]}") ; then
+        	failed="T"
+    	fi
+	fi
+
+	if [[ "$gossipPort" != 5001 ]] ; then
+		if !(grep -Eq "$msgLine3" "${outputFiles[$i]}") ; then
+        	failed="T"
+    	fi
+		if !(grep -Eq "$msgLine4" "${outputFiles[$i]}") ; then
+        	failed="T"
+    	fi
+	fi
+	
+	if [[ "$gossipPort" != 5006 ]] ; then
+		if !(grep -Eq "$msgLine5" "${outputFiles[$i]}") ; then
+        	failed="T"
+    	fi
+	fi
 	gossipPort=$(($gossipPort+1))
 done
 
@@ -202,8 +211,8 @@ do
     fi
     nextPort=$((($gossipPort+1)%10+5000))
 
-    msgLine1="FLIPPED COIN sending status to 127.0.0.1:$relayPort"
-    msgLine2="FLIPPED COIN sending status to 127.0.0.1:$nextPort"
+    msgLine1="FLIPPED COIN sending rumor to 127.0.0.1:$relayPort"
+    msgLine2="FLIPPED COIN sending rumor to 127.0.0.1:$nextPort"
 
     if !(grep -q "$msgLine1" "${outputFiles[$i]}") ; then
         failed="T"
