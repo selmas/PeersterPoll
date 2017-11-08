@@ -1,14 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"log"
 	"flag"
-	"net"
+	"net/http"
 	"strconv"
-
-	"github.com/dedis/protobuf"
-
-	"github.com/JohnDoe/Peerster/part1/proto"
 )
 
 func main() {
@@ -16,32 +13,12 @@ func main() {
 	msgStr := flag.String("msg", "Hello", "message to send")
 	flag.Parse()
 
-	msg := proto.Message{
-		OPName:	nil,
-		Relay:	nil,
-		Text:	*msgStr,
-	}
-	to_send, err := protobuf.Encode(&msg)
-	if err != nil {
-		log.Fatal(err)
-	}
+	url := "http://localhost:" + strconv.FormatUint(*port, 10) + "/message"
+	msg := bytes.NewBufferString(*msgStr)
 
-	server_addr, err := net.ResolveUDPAddr("udp", ":" + strconv.FormatUint(*port, 10))
+	resp, err := http.Post(url, "text/plain", msg)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	client, err := net.DialUDP("udp", nil, server_addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer client.Close()
-
-	sent_size, err := client.Write(to_send)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if sent_size != len(to_send) {
-		log.Fatal("unable to send the whole message")
-	}
+	defer resp.Body.Close()
 }

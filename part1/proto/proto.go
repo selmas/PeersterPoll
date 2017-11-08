@@ -1,9 +1,28 @@
 package proto
 
-const CLIENT_TAG string = "from client"
 
-type Message struct {
-	OPName	*string
-	Relay	*string
+type PeerMessage struct {
+	ID	uint32
 	Text	string
+}
+
+type RumorMessage struct {
+	Origin		string
+	PeerMessage	PeerMessage
+}
+
+
+type PeerStatus struct {
+	Identifier	string
+	NextID		uint32
+}
+
+type StatusPacket struct {
+	Want	[]PeerStatus
+}
+
+
+type GossipPacket struct {
+	Rumor	*RumorMessage
+	Status	*StatusPacket
 }
