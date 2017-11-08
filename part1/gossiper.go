@@ -1,15 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"math/rand"
 	"net"
 	"net/http"
-	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -97,63 +93,6 @@ func runServer(gossiper *Gossiper, server *Server, dispatcher Dispatcher) {
 	}
 }
 
-func printClientRumor(gossiper *Gossiper, msg *proto.RumorMessage) {
-	fmt.Println("CLIENT", msg.PeerMessage.Text, gossiper.Name)
-}
-
-func printRumor(gossiper *Gossiper, clientAddr *net.UDPAddr, msg *proto.RumorMessage) {
-	fmt.Println(
-		"RUMOR origin", msg.Origin,
-		"from", clientAddr.String(),
-		"ID", msg.PeerMessage.ID,
-		"contents", msg.PeerMessage.Text,
-	)
-	printPeers(gossiper)
-}
-
-func printMongering(addr *net.UDPAddr) {
-	fmt.Println("MONGERING with", addr.String())
-}
-
-func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *proto.StatusPacket) {
-	var str string
-	str += "STATUS from " + addr.String()
-
-	for _, s := range msg.Want {
-		str += " origin " + s.Identifier
-		str += " nextID " + strconv.FormatUint(uint64(s.NextID), 10)
-	}
-	fmt.Println(str)
-	printPeers(gossiper)
-}
-
-func printFlippedCoin(addr *net.UDPAddr, typeOfFlip string) {
-	fmt.Println("FLIPPED COIN sending", typeOfFlip, "to", addr.String())
-}
-
-func printInSyncWith(addr *net.UDPAddr) {
-	fmt.Println("IN SYNC WITH", addr.String())
-}
-
-func printPeers(gossiper *Gossiper) {
-	var str string
-
-	firstPrint := true
-	gossiper.Peers.RLock()
-	for peer := range gossiper.Peers.Set {
-		if firstPrint {
-			str += peer
-			firstPrint = false
-			continue
-		}
-
-		str += "," + peer
-	}
-	gossiper.Peers.RUnlock()
-
-	fmt.Println(str)
-}
-
 func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	peers.RLock()
 	defer peers.RUnlock()
@@ -192,7 +131,7 @@ func sendRumor(gossiper *Gossiper, msg *proto.RumorMessage, fromPeer *net.UDPAdd
 	for {
 		peer := getRandomPeer(&gossiper.Peers, fromPeer)
 		if peer == nil {
-			break;
+			break
 		}
 
 		writeMsgToUDP(gossiper.Server, peer, msg, nil)
@@ -267,7 +206,6 @@ func getWantedRumor(gossiper *Gossiper, s *proto.StatusPacket) *proto.RumorMessa
 		}
 	}
 
-
 	return nil
 }
 
@@ -311,7 +249,7 @@ func storeRumor(gossiper *Gossiper, rumor *proto.RumorMessage) bool {
 
 	msgs := gossiper.Messages.Set[rumor.Origin]
 
-	if rumor.PeerMessage.ID == uint32(len(msgs)) + 1 {
+	if rumor.PeerMessage.ID == uint32(len(msgs))+1 {
 		msgs = append(msgs, rumor.PeerMessage)
 		added = true
 		gossiper.Messages.Set[rumor.Origin] = msgs
@@ -356,125 +294,11 @@ func antiEntropy(gossiper *Gossiper) {
 
 		peer := getRandomPeer(&gossiper.Peers, nil)
 		if peer == nil {
-			continue;
+			continue
 		}
 
 		printFlippedCoin(peer, "status")
 		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper))
-	}
-}
-
-func formatMessages(gossiper *Gossiper) map[string][]string {
-	gossiper.Messages.RLock()
-	defer gossiper.Messages.RUnlock()
-
-	messages := make(map[string][]string)
-	for origin, peerMessages := range gossiper.Messages.Set {
-
-		msgs := make([]string, len(peerMessages))
-		for i, msg := range peerMessages {
-			msgs[i] = msg.Text
-		}
-
-		messages[origin] = msgs
-	}
-
-	return messages
-}
-
-func apiGetMessages(gossiper *Gossiper) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		bytes, err := json.Marshal(formatMessages(gossiper))
-
-		if err != nil {
-			log.Printf("unable to encode as json")
-			return
-		}
-
-		_, err = w.Write(bytes)
-		if err != nil {
-			log.Printf("unable to send answer")
-		}
-	}
-}
-
-func apiPutMessage(gossiper *Gossiper) func(http.ResponseWriter, *http.Request) {
-	buf := make([]byte, 1024)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		newUid := atomic.AddUint32(&gossiper.LastUid, 1)
-
-		size, _ := r.Body.Read(buf)
-		text := string(buf[:size])
-
-		msg := &proto.RumorMessage{
-			Origin: gossiper.Name,
-			PeerMessage: proto.PeerMessage{
-				ID:   newUid,
-				Text: text,
-			},
-		}
-
-		storeRumor(gossiper, msg)
-		sendRumor(gossiper, msg, nil)
-	}
-}
-
-func apiGetNodes(gossiper *Gossiper) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		gossiper.Peers.RLock()
-		peers := make([]string, len(gossiper.Peers.Set))
-		i := 0
-		for peer, _ := range gossiper.Peers.Set {
-			peers[i] = peer
-			i++
-		}
-		gossiper.Peers.RUnlock()
-		sort.Strings(peers)
-
-		bytes, err := json.Marshal(peers)
-
-		if err != nil {
-			log.Printf("unable to encode as json")
-			return
-		}
-
-		_, err = w.Write(bytes)
-		if err != nil {
-			log.Printf("unable to send answer")
-		}
-	}
-}
-
-func apiPutNode(gossiper *Gossiper) func(http.ResponseWriter, *http.Request) {
-	buf := make([]byte, 1024)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		size, _ := r.Body.Read(buf)
-		node := string(buf[:size])
-
-		gossiper.Peers.Lock()
-		defer gossiper.Peers.Unlock()
-
-		gossiper.Peers.Set[node] = true
-	}
-}
-
-func apiGetId(gossiper *Gossiper) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		_, err := w.Write([]byte(gossiper.Name))
-		if err != nil {
-			log.Printf("unable to send answer")
-		}
-	}
-}
-
-func apiChangeId(gossiper *Gossiper) func(http.ResponseWriter, *http.Request) {
-	buf := make([]byte, 1024)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		size, _ := r.Body.Read(buf)
-		gossiper.Name = string(buf[:size])
 	}
 }
 
