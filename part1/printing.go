@@ -64,3 +64,16 @@ func printPeers(gossiper *Gossiper) {
 
 	fmt.Println(str)
 }
+
+func printRouting(gossiper *Gossiper) {
+	gossiper.Routes.RLock()
+	defer gossiper.Routes.RUnlock()
+
+	var str string
+
+	for origin, sendTo := range gossiper.Routes.Table {
+		str += origin + " -> " + sendTo + "\n"
+	}
+
+	fmt.Println(str)
+}

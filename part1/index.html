@@ -2,34 +2,42 @@
 	<head>
 		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 		<script type="text/javascript">
+function handle_update_map_origin_msgs(selector) {
+	return function(data, _, _) {
+		str = "";
+		Object.entries(data).forEach(function(kv, _, _) {
+			origin = kv[0]
+			msgs = kv[1]
+			msgs.forEach(function(msg, _, _) {
+				str += origin + ": " + msg + "\n";
+			})
+		})
+
+		$(selector).text(str)
+	}
+}
+
+function handle_update_list(selector) {
+	return function(data) {
+		str = ""
+		data.forEach(function(node, _, _) {
+			str += node + "\n"
+		})
+		$(selector).text(str)
+	}
+}
+
 function update_messages() {
 	$.ajax("/message", {
 		dataType: "json",
-		success: function(data, _, _) {
-			str = "";
-			Object.entries(data).forEach(function(kv, _, _) {
-				origin = kv[0]
-				msgs = kv[1]
-				msgs.forEach(function(msg, _, _) {
-					str += origin + ": " + msg + "\n";
-				})
-			})
-
-			$("#messages").text(str)
-		},
+		success: handle_update_map_origin_msgs("#messages"),
 	})
 }
 
 function update_nodes() {
 	$.ajax("/node", {
 		dataType: "json",
-		success: function(data, _, _) {
-			str = ""
-			data.forEach(function(node, _, _) {
-				str += node + "\n"
-			})
-			$("#nodes").text(str)
-		},
+		success: handle_update_list("#nodes"),
 	})
 }
 
@@ -38,6 +46,29 @@ function update_id() {
 		success: function(data, _, _) {
 			$("#id").val(data)
 		},
+	})
+}
+
+function update_private_messages() {
+	$.ajax("/private_messages", {
+		dataType: "json",
+		success: handle_update_map_origin_msgs("#private_messages"),
+	})
+}
+
+function update_routes() {
+	$.ajax("/routes", {
+		dataType: "json",
+		success: (data) => {
+			$("#routes").html(
+				data.map((node) => {
+					return $("<option>", {
+						value: node,
+						text: node,
+					})
+				})
+			)
+		}
 	})
 }
 
@@ -53,13 +84,29 @@ function change_id() {
 	$.post("/id", $("#id").val(), update_id)
 };
 
-update_messages()
-setInterval(update_messages, 1000)
+function send_private_message() {
+	dest = $("#routes").val()
+	text = prompt('message to ' + dest)
+	if (text == null)
+		return
 
-update_nodes()
-setInterval(update_nodes, 1000)
+	$.post("/private_message", JSON.stringify({
+		'dest': dest,
+		'text': text,
+	}), update_private_messages)
+};
 
 update_id()
+
+update_messages()
+update_nodes()
+update_private_messages()
+update_routes()
+
+setInterval(update_messages, 1000)
+setInterval(update_nodes, 1000)
+setInterval(update_private_messages, 1000)
+setInterval(update_routes, 1000)
 		</script>
 	</head>
 
@@ -78,4 +125,10 @@ update_id()
 	<h2>ID box</h2>
 	<input id="id"/>
 	<button onclick="change_id()">change id</button>
-<html>
+
+	<h2>Private messages box</h2>
+	<textarea id="private_messages" disabled></textarea>
+	<p>
+	<select id="routes"></select>
+	<button onclick="send_private_message()">send private message</button>
+</html>
