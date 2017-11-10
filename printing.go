@@ -5,7 +5,7 @@ import (
 	"net"
 	"strconv"
 
-	"./proto"
+	"github.com/ValerianRousset/Peerster/proto"
 )
 
 func printClientRumor(gossiper *Gossiper, msg *proto.RumorMessage) {

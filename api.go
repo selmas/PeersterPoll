@@ -9,7 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"./proto"
+	"github.com/ValerianRousset/Peerster/proto"
 )
 
 type ApiPrivateMessage struct {
