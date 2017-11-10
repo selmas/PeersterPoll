@@ -72,7 +72,7 @@ func printRouting(gossiper *Gossiper) {
 	var str string
 
 	for origin, sendTo := range gossiper.Routes.Table {
-		str += origin + " -> " + sendTo + "\n"
+		str += origin + " -> " + sendTo.Addr.String() + "\n"
 	}
 
 	fmt.Println(str)

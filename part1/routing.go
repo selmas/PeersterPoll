@@ -8,17 +8,25 @@ import (
 	"./proto"
 )
 
-func updateRouting(gossiper *Gossiper, peerAddr *net.UDPAddr, rumor *proto.RumorMessage) {
+func updateRouting(gossiper *Gossiper, peerAddr *net.UDPAddr, rumor *proto.RumorMessage, newerRoute bool) {
 	if rumor.Origin == gossiper.Name {
 		return
 	}
 
-	println("new route:", rumor.Origin, "->", peerAddr.String())
-
 	gossiper.Routes.Lock()
 	defer gossiper.Routes.Unlock()
 
-	gossiper.Routes.Table[rumor.Origin] = peerAddr.String()
+	if !newerRoute {
+		oldRoute, found := gossiper.Routes.Table[rumor.Origin]
+		if found && oldRoute.IsDirect {
+			return
+		}
+	}
+
+	gossiper.Routes.Table[rumor.Origin] = Route{
+		IsDirect: rumor.IsDirect(),
+		Addr:     *peerAddr,
+	}
 }
 
 func getNextHop(gossiper *Gossiper, origin string) *net.UDPAddr {
@@ -28,7 +36,7 @@ func getNextHop(gossiper *Gossiper, origin string) *net.UDPAddr {
 	nextHop, found := gossiper.Routes.Table[origin]
 
 	if found {
-		return parseAddr(nextHop)
+		return &nextHop.Addr
 	}
 
 	return nil

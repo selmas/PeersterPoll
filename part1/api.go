@@ -176,7 +176,6 @@ func formatMessageSet(ms *MessageSet) map[string][]string {
 
 		msgs := make([]string, 0, len(peerMessages))
 		for _, msg := range peerMessages {
-			//fmt.Printf("%s -> %s\n", origin, msg.Text)
 			if msg.Text != "" {
 				msgs = append(msgs, msg.Text)
 			}
