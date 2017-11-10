@@ -1,0 +1,7 @@
+tldr; no need
+
+the feature are hortogonal, one should not impact the other feature, only
+improve it
+ - ex4:	"-noforward" when it not use, same as before
+ - ex5: use field not used before, so improvement only
+ - ex5: faster private message but still the same feature
