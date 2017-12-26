@@ -11,7 +11,7 @@ import (
 
 	"github.com/dedis/protobuf"
 
-	"github.com/ValerianRousset/Peerster/proto"
+	"github.com/Peerster/proto"
 )
 
 type Server struct {

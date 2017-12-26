@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ValerianRousset/Peerster/proto"
+	"github.com/Peerster/proto"
 )
 
 func updateRouting(gossiper *Gossiper, peerAddr *net.UDPAddr, rumor *proto.RumorMessage, newerRoute bool) {
