@@ -2,44 +2,38 @@ package main
 
 import (
 	"errors"
+	set "github.com/deckarep/golang-set"
 )
 
-type MessageID struct {
-	Origin string
-	ID     uint32
-}
-
-func checkMessageID(msg MessageID) error {
-	return nil
-}
-
 type RumorMessage struct {
-	Peer MessageID
-	Poll PollPacket
+	pollKey      PollKey
+	pollQuestion *Poll
+	pollVote     set.Set
 }
 
+// TODO check rumor message
 func checkRumorMessage(msg RumorMessage) error {
-	err := checkMessageID(msg.Peer)
+	/*err := checkMessageID(msg.pollKey)
 	if err != nil {
 		return errors.New("RumorMessage: " + err.Error())
 	}
 
-	err = checkPollPacket(msg.Poll)
+	err = checkPollPacket(msg.pollQuestion)
 	if err != nil {
 		return errors.New("RumorMessage: " + err.Error())
 	}
-
+*/
 	return nil
 }
 
 type PeerStatus struct {
-	Identifier string
-	NextID     uint32
+	pollKey         *PollKey
+	participantList set.Set
 }
 
 func checkPeerStatus(msg PeerStatus) error {
-	if msg.NextID == 0 {
-		return errors.New("PeerStatus: want routing msg")
+	if msg.pollKey.PollID < 0 && msg.pollKey.PollOrigin == ""{
+		return errors.New("PeerStatus: illegal pollKey, ID: " + string(int(msg.pollKey.PollID)) + ", Origin: " + msg.pollKey.PollOrigin)
 	}
 
 	return nil
@@ -56,35 +50,6 @@ func checkStatusPacket(msg StatusPacket) error {
 			return errors.New("StatusPacket: " + err.Error())
 		}
 	}
-	return nil
-}
-
-func checkPollPacket(msg PollPacket) error {
-	var nilCount uint = 0
-	var err error = nil
-
-	// TODO check Votes field
-	/*if msg.Vote != nil {
-		nilCount++
-		//err = checkVoteMessage(*msg.Vote)
-	}*/
-
-	if msg.Question != nil {
-		nilCount++
-		// TODO check poll message
-		//err = checkPollMessage(*msg.Question)
-	}
-
-	if err != nil {
-		return err
-	}
-
-	if nilCount > 1 {
-		return errors.New("too much fields defined")
-	} else if nilCount == 0 {
-		return errors.New("no field defined")
-	}
-
 	return nil
 }
 

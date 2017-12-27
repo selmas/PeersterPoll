@@ -34,12 +34,7 @@ type PollKey struct {
 
 type PollSet struct {
 	sync.RWMutex
-	Set map[PollKey]*PollPacket
-}
-
-type MessageSet struct {
-	sync.RWMutex
-	Set map[string][]MessageID
+	Set map[PollKey]*RumorMessage
 }
 
 type Route struct {
@@ -47,19 +42,19 @@ type Route struct {
 	Addr     net.UDPAddr
 }
 
+// might be needed for consensus, do not remove
 type RoutingTable struct {
 	sync.RWMutex
 	Table map[string]Route
 }
 
 type Gossiper struct {
-	Name     string
-	KeyPair	 *ecdsa.PrivateKey
-	LastUid  uint32
-	Peers    PeerSet
-	Messages MessageSet
-	Polls    PollSet
-	Server   *Server
+	Name       string
+	KeyPair    *ecdsa.PrivateKey
+	lastPollID uint32
+	Peers      PeerSet
+	Polls      PollSet
+	Server     *Server
 }
 
 func (g *Gossiper) addPeer(addr net.UDPAddr) {
@@ -102,11 +97,8 @@ func NewGossiper(name string, server *Server) *Gossiper {
 		Peers: PeerSet{
 			Set: make(map[string]bool),
 		},
-		Messages: MessageSet{
-			Set: make(map[string][]MessageID),
-		},
 		Polls: PollSet{
-			Set: make(map[PollKey]*PollPacket),
+			Set: make(map[PollKey]*RumorMessage),
 		},
 	}
 }
@@ -150,7 +142,7 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	return addr
 }
 
-func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *RumorMessage, status *StatusPacket, poll *PollPacket) {
+func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *RumorMessage, status *StatusPacket) {
 	toSend, err := protobuf.Encode(&GossipPacket{
 		Rumor:  rumor,
 		Status: status,
@@ -171,7 +163,7 @@ func sendRumor(gossiper *Gossiper, msg *RumorMessage, fromPeer *net.UDPAddr) {
 			break
 		}
 
-		writeMsgToUDP(gossiper.Server, peer, msg, nil, nil)
+		writeMsgToUDP(gossiper.Server, peer, msg, nil)
 
 		printFlippedCoin(peer, "rumor")
 		if rand.Intn(2) == 0 {
@@ -180,18 +172,21 @@ func sendRumor(gossiper *Gossiper, msg *RumorMessage, fromPeer *net.UDPAddr) {
 	}
 }
 
-func peerIsAheadOfUs(gossiper *Gossiper, s *StatusPacket) bool {
-	gossiper.Messages.RLock()
-	defer gossiper.Messages.RUnlock()
+// go through received status containing different polls
+
+func peerMissesInformation(gossiper *Gossiper, s *StatusPacket) bool {
+	gossiper.Polls.RLock()
+	defer gossiper.Polls.RUnlock()
 
 	for _, status := range s.Want {
-		msgs, found := gossiper.Messages.Set[status.Identifier]
+		msg, found := gossiper.Polls.Set[*status.pollKey]
 
 		if !found {
 			return true
 		}
 
-		if uint32(len(msgs)) < (status.NextID - 1) {
+		dif := msg.pollVote.Difference(status.participantList)
+		if dif.Cardinality() != 0 {
 			return true
 		}
 	}
@@ -199,48 +194,17 @@ func peerIsAheadOfUs(gossiper *Gossiper, s *StatusPacket) bool {
 	return false
 }
 
-func getWantedRumor(gossiper *Gossiper, s *StatusPacket) *RumorMessage {
-	gossiper.Messages.RLock()
-	defer gossiper.Messages.RUnlock()
-
-	for origin, msgs := range gossiper.Messages.Set {
-		var status *PeerStatus = nil
-		for _, current := range s.Want {
-			if current.Identifier == origin {
-				status = &current
-			}
-		}
-
-		if status == nil || uint32(len(msgs)) >= status.NextID {
-			var pos uint
-			if status == nil {
-				pos = 0
-			} else {
-				pos = uint(len(msgs)) - 1
-			}
-
-			msg := msgs[pos]
-			return &RumorMessage{
-				Peer: msg,
-			}
-		}
-	}
-
-	return nil
-}
-
 func getStatus(gossiper *Gossiper) *StatusPacket {
-	gossiper.Messages.Lock()
-	defer gossiper.Messages.Unlock()
+	gossiper.Polls.Lock()
+	defer gossiper.Polls.Unlock()
 
-	wanted := make([]PeerStatus, len(gossiper.Messages.Set))
+	wanted := make([]PeerStatus, len(gossiper.Polls.Set))
 	i := 0
-	for origin, msgs := range gossiper.Messages.Set {
+	for _, msg := range gossiper.Polls.Set {
 		wanted[i] = PeerStatus{
-			Identifier: origin,
-			NextID:     uint32(len(msgs)) + 1,
+			&msg.pollKey,
+			msg.pollVote,
 		}
-
 		i++
 	}
 
@@ -250,33 +214,11 @@ func getStatus(gossiper *Gossiper) *StatusPacket {
 }
 
 func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, msg *StatusPacket) {
-	rumor := getWantedRumor(gossiper, msg)
-
-	if rumor != nil {
-		writeMsgToUDP(gossiper.Server, peer, rumor, nil, nil)
-	} else if peerIsAheadOfUs(gossiper, msg) {
-		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper), nil)
-	} else {
-		printInSyncWith(peer)
+	if peerMissesInformation(gossiper, msg) {
+		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper))
 	}
 }
 
-func storeRumor(gossiper *Gossiper, rumor *RumorMessage) bool {
-	added := false
-
-	gossiper.Messages.Lock()
-	defer gossiper.Messages.Unlock()
-
-	msgs := gossiper.Messages.Set[rumor.Peer.Origin]
-
-	if rumor.Peer.ID == uint32(len(msgs))+1 {
-		msgs = append(msgs, rumor.Peer)
-		added = true
-		gossiper.Messages.Set[rumor.Peer.Origin] = msgs
-	}
-
-	return added
-}
 
 func dispatcherPeersterMessage(gossiper *Gossiper) Dispatcher {
 	return func(fromPeer *net.UDPAddr, pkg *GossipPacket) {
@@ -289,17 +231,16 @@ func dispatcherPeersterMessage(gossiper *Gossiper) Dispatcher {
 		gossiper.addPeer(*fromPeer)
 
 		if pkg.Rumor != nil {
-			r := pkg.Rumor
-			printRumor(gossiper, fromPeer, r)
+			rumor := pkg.Rumor
+			printRumor(gossiper, fromPeer, rumor)
 
-			storeRumor(gossiper, r)
-			sendRumor(gossiper, r, fromPeer)
+			// TODO handle rumor
 
-			poll := r.Poll
-			if poll.Question.StartTime.Add(poll.Question.Duration).Before(time.Now()) {
-				handlePoll(gossiper, poll)
+			poll := rumor.pollQuestion
+			if poll.StartTime.Add(poll.Duration).Before(time.Now()) {
+				handlePoll(gossiper, *rumor, fromPeer)
 			} else {
-				forwardPoll(gossiper, poll)
+				sendRumor(gossiper, rumor, fromPeer)
 			}
 		}
 
@@ -332,7 +273,7 @@ func antiEntropyGossip(gossiper *Gossiper) {
 		}
 
 		printFlippedCoin(peer, "status")
-		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper), nil)
+		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper))
 	}
 }
 

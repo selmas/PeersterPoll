@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 )
 
 func printRumor(gossiper *Gossiper, clientAddr *net.UDPAddr, msg *RumorMessage) {
 	fmt.Println(
-		"RUMOR origin", msg.Peer.Origin,
+		"Poll origin", msg.pollKey.PollOrigin,
 		"from", clientAddr.String(),
-		"ID", msg.Peer.ID,
+		"ID", msg.pollKey.PollID,
+		"Question", msg.pollQuestion.Question,
+		"with options", strings.Join(msg.pollQuestion.AnswerOptions, ","),
 	)
 	printPeers(gossiper)
 }
@@ -20,8 +23,9 @@ func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *StatusPacket) {
 	str += "STATUS from " + addr.String()
 
 	for _, s := range msg.Want {
-		str += " origin " + s.Identifier
-		str += " nextID " + strconv.FormatUint(uint64(s.NextID), 10)
+		str += " poll origin " + s.pollKey.PollOrigin
+		str += " ID " + strconv.FormatUint(uint64(s.pollKey.PollID), 10)
+		str += " participants " + s.participantList.String() // TODO what we want?
 	}
 	fmt.Println(str)
 	printPeers(gossiper)
@@ -31,9 +35,6 @@ func printFlippedCoin(addr *net.UDPAddr, typeOfFlip string) {
 	fmt.Println("FLIPPED COIN sending", typeOfFlip, "to", addr.String())
 }
 
-func printInSyncWith(addr *net.UDPAddr) {
-	fmt.Println("IN SYNC WITH", addr.String())
-}
 
 func printPeers(gossiper *Gossiper) {
 	var str string
