@@ -8,7 +8,7 @@ import (
 type Poll struct {
 	Question      string
 	AnswerOptions []string
-	Participants  []string	// TODO needed (could hold public keys if we use linkable ring signatures)
+	Participants  []string // TODO needed (could hold public keys if we use linkable ring signatures)
 	StartTime     time.Time
 	Duration      time.Duration // After duration has passed, can no longer participate in vote
 }
@@ -42,12 +42,12 @@ func handlePoll(gossiper *Gossiper, pollPkt *PollPacket) {
 	gossiper.Polls.Lock()
 	defer gossiper.Polls.Unlock()
 
-	storedPoll, isStored := gossiper.Polls.Set[PollKey{pollPkt.PollOrigin, pollPkt.PollID}]
+	/*storedPoll, isStored := gossiper.Polls.Set[PollKey{pollPkt.PollOrigin, pollPkt.PollID}]
 
 	if !isStored {
 		gossiper.Polls.Set[PollKey{pollPkt.PollOrigin, pollPkt.PollID}] = pollPkt
 		sendRumor() // TODO forward
-	}
+	}*/
 }
 func handleVote(vote *Vote) {
 

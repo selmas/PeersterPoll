@@ -96,19 +96,18 @@ type PrivateMessage struct {
 	HopLimit uint32
 }
 
-
 func checkPollPacket(msg PollPacket) error {
 	var nilCount uint = 0
 	var err error = nil
 
-	if msg.Vote != nil {
+	/*if msg.Vote != nil {
 		nilCount++
-		err = checkVoteMessage(*msg.Vote)
-	}
+		//err = checkVoteMessage(*msg.Vote)
+	}*/
 
 	if msg.Question != nil {
 		nilCount++
-		err = checkPollMessage(*msg.Question)
+		//err = checkPollMessage(*msg.Question)
 	}
 
 	if err != nil {
