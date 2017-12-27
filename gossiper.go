@@ -22,7 +22,7 @@ type PeerSet struct {
 	Set map[string]bool
 }
 
-type PollKey struct{
+type PollKey struct {
 	PollOrigin string
 	PollID     uint32
 }
@@ -48,14 +48,12 @@ type RoutingTable struct {
 }
 
 type Gossiper struct {
-	Name            string
-	LastUid         uint32
-	Peers           PeerSet
-	Messages        MessageSet
-	PrivateMessages MessageSet
-	Polls			PollSet
-	Server          *Server
-	Routes          RoutingTable
+	Name     string
+	LastUid  uint32
+	Peers    PeerSet
+	Messages MessageSet
+	Polls    PollSet
+	Server   *Server
 }
 
 func (g *Gossiper) addPeer(addr net.UDPAddr) {
@@ -92,14 +90,8 @@ func NewGossiper(name string, server *Server) *Gossiper {
 		Messages: MessageSet{
 			Set: make(map[string][]PeerMessage),
 		},
-		PrivateMessages: MessageSet{
-			Set: make(map[string][]PeerMessage),
-		},
 		Polls: PollSet{
 			Set: make(map[PollKey]*PollPacket),
-		},
-		Routes: RoutingTable{
-			Table: make(map[string]Route),
 		},
 	}
 }
@@ -143,21 +135,16 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	return addr
 }
 
-func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *RumorMessage, status *StatusPacket, pm *PrivateMessage, poll *PollPacket) {
+func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *RumorMessage, status *StatusPacket, poll *PollPacket) {
 	toSend, err := protobuf.Encode(&GossipPacket{
-		Rumor:   rumor,
-		Status:  status,
-		Private: pm,
-		Poll:	 poll,
+		Rumor:  rumor,
+		Status: status,
+		Poll:   poll,
 	})
 
 	if err != nil {
 		log.Printf("unable to encode answer: %s", err)
 		return
-	}
-
-	if rumor != nil {
-		printMongering(peer)
 	}
 
 	server.Conn.WriteToUDP(toSend, peer)
@@ -170,27 +157,13 @@ func sendRumor(gossiper *Gossiper, msg *RumorMessage, fromPeer *net.UDPAddr) {
 			break
 		}
 
-		writeMsgToUDP(gossiper.Server, peer, msg, nil, nil, nil)
+		writeMsgToUDP(gossiper.Server, peer, msg, nil, nil)
 
 		printFlippedCoin(peer, "rumor")
 		if rand.Intn(2) == 0 {
 			break
 		}
 	}
-}
-
-func forwardPrivateMessage(gossiper *Gossiper, previousHop *net.UDPAddr, pm *PrivateMessage) {
-	pm.HopLimit--
-	sendPrivateMessage(gossiper, previousHop, pm)
-}
-
-func sendPrivateMessage(gossiper *Gossiper, previousHop *net.UDPAddr, msg *PrivateMessage) {
-	peer := getNextHop(gossiper, msg.Dest)
-	if peer == nil {
-		peer = getRandomPeer(&gossiper.Peers, previousHop)
-	}
-
-	writeMsgToUDP(gossiper.Server, peer, nil, nil, msg, nil)
 }
 
 func peerIsAheadOfUs(gossiper *Gossiper, s *StatusPacket) bool {
@@ -266,9 +239,9 @@ func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, msg *StatusPacket) {
 	rumor := getWantedRumor(gossiper, msg)
 
 	if rumor != nil {
-		writeMsgToUDP(gossiper.Server, peer, rumor, nil, nil, nil)
+		writeMsgToUDP(gossiper.Server, peer, rumor, nil, nil)
 	} else if peerIsAheadOfUs(gossiper, msg) {
-		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper), nil, nil)
+		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper), nil)
 	} else {
 		printInSyncWith(peer)
 	}
@@ -291,21 +264,7 @@ func storeRumor(gossiper *Gossiper, rumor *RumorMessage) bool {
 	return added
 }
 
-func storePrivateMessage(gossiper *Gossiper, pm *PrivateMessage) {
-	gossiper.PrivateMessages.Lock()
-	defer gossiper.PrivateMessages.Unlock()
-
-	msgs := gossiper.PrivateMessages.Set[pm.Origin]
-	msgs = append(msgs, pm.PeerMessage)
-	gossiper.PrivateMessages.Set[pm.Origin] = msgs
-}
-
-func addRumorSender(r *RumorMessage, fromPeer net.UDPAddr) {
-	r.LastIP = &fromPeer.IP
-	r.LastPort = &fromPeer.Port
-}
-
-func dispatcherPeersterMessage(gossiper *Gossiper, noForward bool) Dispatcher {
+func dispatcherPeersterMessage(gossiper *Gossiper) Dispatcher {
 	return func(fromPeer *net.UDPAddr, pkg *GossipPacket) {
 		err := CheckGossipPacket(pkg)
 		if err != nil {
@@ -319,33 +278,13 @@ func dispatcherPeersterMessage(gossiper *Gossiper, noForward bool) Dispatcher {
 			r := pkg.Rumor
 			printRumor(gossiper, fromPeer, r)
 
-			lastAddr := r.GetLastAddr()
-			if lastAddr != nil {
-				gossiper.addPeer(*lastAddr)
-			}
-
-			r.SetSender(*fromPeer)
-
-			added := storeRumor(gossiper, r)
-			if r.IsRouting() {
-				updateRouting(gossiper, fromPeer, r, added)
-			} else if added && !noForward {
-				sendRumor(gossiper, r, fromPeer)
-			}
+			storeRumor(gossiper, r)
+			sendRumor(gossiper, r, fromPeer)
 		}
 
 		if pkg.Status != nil {
 			printStatus(gossiper, fromPeer, pkg.Status)
 			syncStatus(gossiper, fromPeer, pkg.Status)
-		}
-
-		if pkg.Private != nil {
-			pm := pkg.Private
-			if pm.Dest == gossiper.Name {
-				storePrivateMessage(gossiper, pm)
-			} else if pm.HopLimit > 0 && !noForward {
-				forwardPrivateMessage(gossiper, fromPeer, pm)
-			}
 		}
 
 		if pkg.Poll != nil {
@@ -360,7 +299,6 @@ func dispatcherPeersterMessage(gossiper *Gossiper, noForward bool) Dispatcher {
 
 	}
 }
-
 
 func parseAddr(str string) *net.UDPAddr {
 	addr, err := net.ResolveUDPAddr("udp", str)
@@ -383,7 +321,7 @@ func antiEntropyGossip(gossiper *Gossiper) {
 		}
 
 		printFlippedCoin(peer, "status")
-		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper), nil, nil)
+		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper), nil)
 	}
 }
 
@@ -392,8 +330,6 @@ func main() {
 	gossipAddr := flag.String("gossipAddr", "127.0.0.1:5000", "port to connect the gossiper server")
 	name := flag.String("name", "nodeA", "server identifier")
 	peersStr := flag.String("peers", "127.0.0.1:5001_10.1.1.7:5002", "underscore separated list of peers")
-	routingTimeout := flag.Uint("rtimer", 60, "timeout between routing cast")
-	noForward := flag.Bool("noforward", false, "forward [private] messages")
 	flag.Parse()
 
 	gossiper := NewGossiper(*name, NewServer(*gossipAddr))
@@ -408,8 +344,7 @@ func main() {
 	}
 
 	// one should stay main thread'ed to avoid exiting
-	go runServer(gossiper, gossiper.Server, dispatcherPeersterMessage(gossiper, *noForward))
+	go runServer(gossiper, gossiper.Server, dispatcherPeersterMessage(gossiper))
 	go antiEntropyGossip(gossiper)
-	go antiEntropyRouting(gossiper, *routingTimeout)
 	apiStart(gossiper, *uiPort)
 }

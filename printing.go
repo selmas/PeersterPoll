@@ -20,10 +20,6 @@ func printRumor(gossiper *Gossiper, clientAddr *net.UDPAddr, msg *RumorMessage) 
 	printPeers(gossiper)
 }
 
-func printMongering(addr *net.UDPAddr) {
-	fmt.Println("MONGERING with", addr.String())
-}
-
 func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *StatusPacket) {
 	var str string
 	str += "STATUS from " + addr.String()
@@ -59,19 +55,6 @@ func printPeers(gossiper *Gossiper) {
 		str += "," + peer
 	}
 	gossiper.Peers.RUnlock()
-
-	fmt.Println(str)
-}
-
-func printRouting(gossiper *Gossiper) {
-	gossiper.Routes.RLock()
-	defer gossiper.Routes.RUnlock()
-
-	var str string
-
-	for origin, sendTo := range gossiper.Routes.Table {
-		str += origin + " -> " + sendTo.Addr.String() + "\n"
-	}
 
 	fmt.Println(str)
 }

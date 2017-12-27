@@ -2,17 +2,12 @@ package main
 
 import (
 	"errors"
-	"net"
 )
 
 type PeerMessage struct {
 	Origin string
 	ID     uint32
 	Text   string
-}
-
-func (m PeerMessage) IsRouting() bool {
-	return m.ID == 0
 }
 
 func checkPeerMessage(msg PeerMessage) error {
@@ -25,8 +20,6 @@ func checkPeerMessage(msg PeerMessage) error {
 
 type RumorMessage struct {
 	PeerMessage
-	LastIP   *net.IP
-	LastPort *int
 }
 
 func checkRumorMessage(msg RumorMessage) error {
@@ -35,32 +28,7 @@ func checkRumorMessage(msg RumorMessage) error {
 		return errors.New("RumorMessage: " + err.Error())
 	}
 
-	// boolean xor
-	if (msg.LastIP == nil) != (msg.LastPort == nil) {
-		return errors.New("RumorMessage: half Last* defined")
-	}
-
 	return nil
-}
-
-func (r *RumorMessage) SetSender(sender net.UDPAddr) {
-	r.LastIP = &sender.IP
-	r.LastPort = &sender.Port
-}
-
-func (r RumorMessage) GetLastAddr() *net.UDPAddr {
-	if r.IsDirect() {
-		return nil
-	}
-
-	return &net.UDPAddr{
-		IP:   *r.LastIP,
-		Port: *r.LastPort,
-	}
-}
-
-func (r RumorMessage) IsDirect() bool {
-	return r.LastIP == nil && r.LastPort == nil
 }
 
 type PeerStatus struct {
@@ -90,16 +58,11 @@ func checkStatusPacket(msg StatusPacket) error {
 	return nil
 }
 
-type PrivateMessage struct {
-	PeerMessage
-	Dest     string
-	HopLimit uint32
-}
-
 func checkPollPacket(msg PollPacket) error {
 	var nilCount uint = 0
 	var err error = nil
 
+	// TODO check Votes field
 	/*if msg.Vote != nil {
 		nilCount++
 		//err = checkVoteMessage(*msg.Vote)
@@ -107,6 +70,7 @@ func checkPollPacket(msg PollPacket) error {
 
 	if msg.Question != nil {
 		nilCount++
+		// TODO check poll message
 		//err = checkPollMessage(*msg.Question)
 	}
 
@@ -123,20 +87,10 @@ func checkPollPacket(msg PollPacket) error {
 	return nil
 }
 
-func checkPrivateMessage(msg PrivateMessage) error {
-	err := checkPeerMessage(msg.PeerMessage)
-	if err != nil {
-		return errors.New("Private: " + err.Error())
-	}
-
-	return nil
-}
-
 type GossipPacket struct {
-	Rumor   *RumorMessage
-	Status  *StatusPacket
-	Private *PrivateMessage
-	Poll    *PollPacket
+	Rumor  *RumorMessage
+	Status *StatusPacket
+	Poll   *PollPacket
 }
 
 func CheckGossipPacket(pkg *GossipPacket) error {
@@ -151,11 +105,6 @@ func CheckGossipPacket(pkg *GossipPacket) error {
 	if pkg.Status != nil {
 		nilCount++
 		err = checkStatusPacket(*pkg.Status)
-	}
-
-	if pkg.Private != nil {
-		nilCount++
-		err = checkPrivateMessage(*pkg.Private)
 	}
 
 	if pkg.Poll != nil {
