@@ -204,7 +204,7 @@ func getStatus(gossiper *Gossiper) *StatusPacket {
 	for _, msg := range gossiper.Polls.Set {
 		wanted[i] = PeerStatus{
 			&msg.pollKey,
-			msg.pollVote,
+			msg.pollQuestion.Participants,
 			msg.pollVote,
 		}
 		i++
