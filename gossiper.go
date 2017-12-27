@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/dedis/protobuf"
-
-	"github.com/Peerster/proto"
 )
 
 type Server struct {
@@ -26,7 +24,7 @@ type PeerSet struct {
 
 type MessageSet struct {
 	sync.RWMutex
-	Set map[string][]proto.PeerMessage
+	Set map[string][]PeerMessage
 }
 
 type Route struct {
@@ -81,10 +79,10 @@ func NewGossiper(name string, server *Server) *Gossiper {
 			Set: make(map[string]bool),
 		},
 		Messages: MessageSet{
-			Set: make(map[string][]proto.PeerMessage),
+			Set: make(map[string][]PeerMessage),
 		},
 		PrivateMessages: MessageSet{
-			Set: make(map[string][]proto.PeerMessage),
+			Set: make(map[string][]PeerMessage),
 		},
 		Routes: RoutingTable{
 			Table: make(map[string]Route),
@@ -92,7 +90,7 @@ func NewGossiper(name string, server *Server) *Gossiper {
 	}
 }
 
-type Dispatcher func(*net.UDPAddr, *proto.GossipPacket)
+type Dispatcher func(*net.UDPAddr, *GossipPacket)
 
 func runServer(gossiper *Gossiper, server *Server, dispatcher Dispatcher) {
 	buf := make([]byte, 1024)
@@ -104,7 +102,7 @@ func runServer(gossiper *Gossiper, server *Server, dispatcher Dispatcher) {
 			continue
 		}
 
-		var msg proto.GossipPacket
+		var msg GossipPacket
 		err = protobuf.Decode(buf[:bufSize], &msg)
 		if err != nil {
 			log.Println("unable to decode msg:", err)
@@ -131,8 +129,8 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	return addr
 }
 
-func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *proto.RumorMessage, status *proto.StatusPacket, pm *proto.PrivateMessage) {
-	toSend, err := protobuf.Encode(&proto.GossipPacket{
+func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *RumorMessage, status *StatusPacket, pm *PrivateMessage) {
+	toSend, err := protobuf.Encode(&GossipPacket{
 		Rumor:   rumor,
 		Status:  status,
 		Private: pm,
@@ -150,7 +148,7 @@ func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *proto.RumorMessage,
 	server.Conn.WriteToUDP(toSend, peer)
 }
 
-func sendRumor(gossiper *Gossiper, msg *proto.RumorMessage, fromPeer *net.UDPAddr) {
+func sendRumor(gossiper *Gossiper, msg *RumorMessage, fromPeer *net.UDPAddr) {
 	for {
 		peer := getRandomPeer(&gossiper.Peers, fromPeer)
 		if peer == nil {
@@ -166,12 +164,12 @@ func sendRumor(gossiper *Gossiper, msg *proto.RumorMessage, fromPeer *net.UDPAdd
 	}
 }
 
-func forwardPrivateMessage(gossiper *Gossiper, previousHop *net.UDPAddr, pm *proto.PrivateMessage) {
+func forwardPrivateMessage(gossiper *Gossiper, previousHop *net.UDPAddr, pm *PrivateMessage) {
 	pm.HopLimit--
 	sendPrivateMessage(gossiper, previousHop, pm)
 }
 
-func sendPrivateMessage(gossiper *Gossiper, previousHop *net.UDPAddr, msg *proto.PrivateMessage) {
+func sendPrivateMessage(gossiper *Gossiper, previousHop *net.UDPAddr, msg *PrivateMessage) {
 	peer := getNextHop(gossiper, msg.Dest)
 	if peer == nil {
 		peer = getRandomPeer(&gossiper.Peers, previousHop)
@@ -180,7 +178,7 @@ func sendPrivateMessage(gossiper *Gossiper, previousHop *net.UDPAddr, msg *proto
 	writeMsgToUDP(gossiper.Server, peer, nil, nil, msg)
 }
 
-func peerIsAheadOfUs(gossiper *Gossiper, s *proto.StatusPacket) bool {
+func peerIsAheadOfUs(gossiper *Gossiper, s *StatusPacket) bool {
 	gossiper.Messages.RLock()
 	defer gossiper.Messages.RUnlock()
 
@@ -199,12 +197,12 @@ func peerIsAheadOfUs(gossiper *Gossiper, s *proto.StatusPacket) bool {
 	return false
 }
 
-func getWantedRumor(gossiper *Gossiper, s *proto.StatusPacket) *proto.RumorMessage {
+func getWantedRumor(gossiper *Gossiper, s *StatusPacket) *RumorMessage {
 	gossiper.Messages.RLock()
 	defer gossiper.Messages.RUnlock()
 
 	for origin, msgs := range gossiper.Messages.Set {
-		var status *proto.PeerStatus = nil
+		var status *PeerStatus = nil
 		for _, current := range s.Want {
 			if current.Identifier == origin {
 				status = &current
@@ -220,7 +218,7 @@ func getWantedRumor(gossiper *Gossiper, s *proto.StatusPacket) *proto.RumorMessa
 			}
 
 			msg := msgs[pos]
-			return &proto.RumorMessage{
+			return &RumorMessage{
 				PeerMessage: msg,
 			}
 		}
@@ -229,14 +227,14 @@ func getWantedRumor(gossiper *Gossiper, s *proto.StatusPacket) *proto.RumorMessa
 	return nil
 }
 
-func getStatus(gossiper *Gossiper) *proto.StatusPacket {
+func getStatus(gossiper *Gossiper) *StatusPacket {
 	gossiper.Messages.Lock()
 	defer gossiper.Messages.Unlock()
 
-	wanted := make([]proto.PeerStatus, len(gossiper.Messages.Set))
+	wanted := make([]PeerStatus, len(gossiper.Messages.Set))
 	i := 0
 	for origin, msgs := range gossiper.Messages.Set {
-		wanted[i] = proto.PeerStatus{
+		wanted[i] = PeerStatus{
 			Identifier: origin,
 			NextID:     uint32(len(msgs)) + 1,
 		}
@@ -244,12 +242,12 @@ func getStatus(gossiper *Gossiper) *proto.StatusPacket {
 		i++
 	}
 
-	return &proto.StatusPacket{
+	return &StatusPacket{
 		Want: wanted,
 	}
 }
 
-func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, msg *proto.StatusPacket) {
+func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, msg *StatusPacket) {
 	rumor := getWantedRumor(gossiper, msg)
 
 	if rumor != nil {
@@ -261,7 +259,7 @@ func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, msg *proto.StatusPacket) 
 	}
 }
 
-func storeRumor(gossiper *Gossiper, rumor *proto.RumorMessage) bool {
+func storeRumor(gossiper *Gossiper, rumor *RumorMessage) bool {
 	added := false
 
 	gossiper.Messages.Lock()
@@ -278,7 +276,7 @@ func storeRumor(gossiper *Gossiper, rumor *proto.RumorMessage) bool {
 	return added
 }
 
-func storePrivateMessage(gossiper *Gossiper, pm *proto.PrivateMessage) {
+func storePrivateMessage(gossiper *Gossiper, pm *PrivateMessage) {
 	gossiper.PrivateMessages.Lock()
 	defer gossiper.PrivateMessages.Unlock()
 
@@ -287,14 +285,14 @@ func storePrivateMessage(gossiper *Gossiper, pm *proto.PrivateMessage) {
 	gossiper.PrivateMessages.Set[pm.Origin] = msgs
 }
 
-func addRumorSender(r *proto.RumorMessage, fromPeer net.UDPAddr) {
+func addRumorSender(r *RumorMessage, fromPeer net.UDPAddr) {
 	r.LastIP = &fromPeer.IP
 	r.LastPort = &fromPeer.Port
 }
 
 func dispatcherPeersterMessage(gossiper *Gossiper, noForward bool) Dispatcher {
-	return func(fromPeer *net.UDPAddr, pkg *proto.GossipPacket) {
-		err := proto.CheckGossipPacket(pkg)
+	return func(fromPeer *net.UDPAddr, pkg *GossipPacket) {
+		err := CheckGossipPacket(pkg)
 		if err != nil {
 			log.Fatal("invalid GossipPacket received:", err)
 			return

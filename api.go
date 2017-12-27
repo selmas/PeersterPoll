@@ -8,8 +8,6 @@ import (
 	"sync/atomic"
 
 	"github.com/gorilla/mux"
-
-	"github.com/Peerster/proto"
 )
 
 type ApiPrivateMessage struct {
@@ -42,8 +40,8 @@ func apiPutMessage(gossiper *Gossiper) func(http.ResponseWriter, *http.Request) 
 		size, _ := r.Body.Read(buf)
 		text := string(buf[:size])
 
-		msg := &proto.RumorMessage{
-			PeerMessage: proto.PeerMessage{
+		msg := &RumorMessage{
+			PeerMessage: PeerMessage{
 				Origin: gossiper.Name,
 				ID:     newUid,
 				Text:   text,
@@ -153,8 +151,8 @@ func apiPutPrivateMessage(gossiper *Gossiper) func(http.ResponseWriter, *http.Re
 			return
 		}
 
-		msg := &proto.PrivateMessage{
-			PeerMessage: proto.PeerMessage{
+		msg := &PrivateMessage{
+			PeerMessage: PeerMessage{
 				Origin: gossiper.Name,
 				ID:     0,
 				Text:   pm.Text,

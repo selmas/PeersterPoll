@@ -4,11 +4,9 @@ import (
 	"net"
 	"sync/atomic"
 	"time"
-
-	"github.com/Peerster/proto"
 )
 
-func updateRouting(gossiper *Gossiper, peerAddr *net.UDPAddr, rumor *proto.RumorMessage, newerRoute bool) {
+func updateRouting(gossiper *Gossiper, peerAddr *net.UDPAddr, rumor *RumorMessage, newerRoute bool) {
 	if rumor.Origin == gossiper.Name {
 		return
 	}
@@ -54,8 +52,8 @@ func antiEntropyRouting(gossiper *Gossiper, routingTimeout uint) {
 
 		newUid := atomic.AddUint32(&gossiper.LastUid, 1)
 
-		msg := proto.RumorMessage{
-			PeerMessage: proto.PeerMessage{
+		msg := RumorMessage{
+			PeerMessage: PeerMessage{
 				Origin: gossiper.Name,
 				ID:     newUid,
 				Text:   "",

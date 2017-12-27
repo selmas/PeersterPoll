@@ -1,4 +1,4 @@
-package proto
+package main
 
 import (
 	"errors"
@@ -96,6 +96,11 @@ type PrivateMessage struct {
 	HopLimit uint32
 }
 
+
+func checkPollMessage(msg PollMessage) error {
+	// TODO: add checks for PollMessage
+}
+
 func checkPrivateMessage(msg PrivateMessage) error {
 	err := checkPeerMessage(msg.PeerMessage)
 	if err != nil {
@@ -109,6 +114,7 @@ type GossipPacket struct {
 	Rumor   *RumorMessage
 	Status  *StatusPacket
 	Private *PrivateMessage
+	Poll	*PollMessage
 }
 
 func CheckGossipPacket(pkg *GossipPacket) error {
@@ -128,6 +134,11 @@ func CheckGossipPacket(pkg *GossipPacket) error {
 	if pkg.Private != nil {
 		nilCount++
 		err = checkPrivateMessage(*pkg.Private)
+	}
+
+	if pkg.Poll != nil {
+		nilCount++
+		err = checkPollMessage(*pkg.Poll)
 	}
 
 	if err != nil {

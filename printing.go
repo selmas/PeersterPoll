@@ -4,15 +4,13 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-
-	"github.com/Peerster/proto"
 )
 
-func printClientRumor(gossiper *Gossiper, msg *proto.RumorMessage) {
+func printClientRumor(gossiper *Gossiper, msg *RumorMessage) {
 	fmt.Println("CLIENT", msg.PeerMessage.Text, gossiper.Name)
 }
 
-func printRumor(gossiper *Gossiper, clientAddr *net.UDPAddr, msg *proto.RumorMessage) {
+func printRumor(gossiper *Gossiper, clientAddr *net.UDPAddr, msg *RumorMessage) {
 	fmt.Println(
 		"RUMOR origin", msg.Origin,
 		"from", clientAddr.String(),
@@ -26,7 +24,7 @@ func printMongering(addr *net.UDPAddr) {
 	fmt.Println("MONGERING with", addr.String())
 }
 
-func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *proto.StatusPacket) {
+func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *StatusPacket) {
 	var str string
 	str += "STATUS from " + addr.String()
 
