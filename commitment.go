@@ -2,7 +2,7 @@ package main
 
 import (
 	"crypto/elliptic"
-	big "math/big"
+	"math/big"
 	"math/rand"
 	"time"
 )
@@ -18,13 +18,6 @@ var curve elliptic.Curve
 var random *rand.Rand
 
 func setup() error {
-	curve = elliptic.P256()
-	// Reader is a global, shared instance of a cryptographically strong pseudo-random generator.
-	/*keyPair, err := ecdsa.GenerateKey(curve, crypto.Reader) // generates key pair
-	if err != nil {
-		return errors.New("Elliptic Curve Generation: " + err.Error())
-	}*/
-
 	random = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// TODO store keypair for gossiper

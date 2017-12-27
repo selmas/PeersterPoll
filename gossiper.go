@@ -10,6 +10,11 @@ import (
 	"time"
 
 	"github.com/dedis/protobuf"
+	"crypto/elliptic"
+	"crypto/ecdsa"
+	"errors"
+
+	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
 )
 
 type Server struct {
@@ -49,6 +54,7 @@ type RoutingTable struct {
 
 type Gossiper struct {
 	Name     string
+	KeyPair	 *ecdsa.PrivateKey
 	LastUid  uint32
 	Peers    PeerSet
 	Messages MessageSet
@@ -81,8 +87,17 @@ func NewServer(address string) *Server {
 }
 
 func NewGossiper(name string, server *Server) *Gossiper {
+	curve = elliptic.P256()
+	// Reader is a global, shared instance of a cryptographically strong pseudo-random generator.
+	keyPair, err := ecdsa.GenerateKey(curve, crypto.Reader) // generates key pair
+
+	if err != nil {
+		errors.New("Elliptic Curve Generation: " + err.Error())
+	}
+
 	return &Gossiper{
 		Name:   name,
+		KeyPair:keyPair,
 		Server: server,
 		Peers: PeerSet{
 			Set: make(map[string]bool),
