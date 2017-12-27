@@ -28,7 +28,7 @@ type PollPacket struct {
 
 // this method forwards the poll packet without locally processing it
 // called when the time to participate in vote has passed
-func forwardPoll(gossiper *Gossiper, pollPkt *PollPacket) {
+func forwardPoll(gossiper *Gossiper, pollPkt PollPacket) {
 
 }
 
@@ -38,7 +38,7 @@ func forwardPoll(gossiper *Gossiper, pollPkt *PollPacket) {
 // the poll storage is updated if the received version is newer
 // if the sender of the poll doesn't have the newest version of the poll
 // reply to sender with the stored version of the poll
-func handlePoll(gossiper *Gossiper, pollPkt *PollPacket) {
+func handlePoll(gossiper *Gossiper, pollPkt PollPacket) {
 	gossiper.Polls.Lock()
 	defer gossiper.Polls.Unlock()
 

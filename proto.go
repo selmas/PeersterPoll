@@ -4,26 +4,27 @@ import (
 	"errors"
 )
 
-type PeerMessage struct {
+type MessageID struct {
 	Origin string
 	ID     uint32
-	Text   string
 }
 
-func checkPeerMessage(msg PeerMessage) error {
-	if msg.ID == 0 && msg.Text != "" {
-		return errors.New("PeerMessage: text in routing msg")
-	}
-
+func checkMessageID(msg MessageID) error {
 	return nil
 }
 
 type RumorMessage struct {
-	PeerMessage
+	Peer MessageID
+	Poll PollPacket
 }
 
 func checkRumorMessage(msg RumorMessage) error {
-	err := checkPeerMessage(msg.PeerMessage)
+	err := checkMessageID(msg.Peer)
+	if err != nil {
+		return errors.New("RumorMessage: " + err.Error())
+	}
+
+	err = checkPollPacket(msg.Poll)
 	if err != nil {
 		return errors.New("RumorMessage: " + err.Error())
 	}
@@ -90,7 +91,6 @@ func checkPollPacket(msg PollPacket) error {
 type GossipPacket struct {
 	Rumor  *RumorMessage
 	Status *StatusPacket
-	Poll   *PollPacket
 }
 
 func CheckGossipPacket(pkg *GossipPacket) error {
@@ -105,11 +105,6 @@ func CheckGossipPacket(pkg *GossipPacket) error {
 	if pkg.Status != nil {
 		nilCount++
 		err = checkStatusPacket(*pkg.Status)
-	}
-
-	if pkg.Poll != nil {
-		nilCount++
-		err = checkPollPacket(*pkg.Poll)
 	}
 
 	if err != nil {

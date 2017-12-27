@@ -6,16 +6,11 @@ import (
 	"strconv"
 )
 
-func printClientRumor(gossiper *Gossiper, msg *RumorMessage) {
-	fmt.Println("CLIENT", msg.PeerMessage.Text, gossiper.Name)
-}
-
 func printRumor(gossiper *Gossiper, clientAddr *net.UDPAddr, msg *RumorMessage) {
 	fmt.Println(
-		"RUMOR origin", msg.Origin,
+		"RUMOR origin", msg.Peer.Origin,
 		"from", clientAddr.String(),
-		"ID", msg.PeerMessage.ID,
-		"contents", msg.PeerMessage.Text,
+		"ID", msg.Peer.ID,
 	)
 	printPeers(gossiper)
 }

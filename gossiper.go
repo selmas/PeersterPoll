@@ -34,7 +34,7 @@ type PollSet struct {
 
 type MessageSet struct {
 	sync.RWMutex
-	Set map[string][]PeerMessage
+	Set map[string][]MessageID
 }
 
 type Route struct {
@@ -88,7 +88,7 @@ func NewGossiper(name string, server *Server) *Gossiper {
 			Set: make(map[string]bool),
 		},
 		Messages: MessageSet{
-			Set: make(map[string][]PeerMessage),
+			Set: make(map[string][]MessageID),
 		},
 		Polls: PollSet{
 			Set: make(map[PollKey]*PollPacket),
@@ -139,7 +139,6 @@ func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *RumorMessage, statu
 	toSend, err := protobuf.Encode(&GossipPacket{
 		Rumor:  rumor,
 		Status: status,
-		Poll:   poll,
 	})
 
 	if err != nil {
@@ -207,7 +206,7 @@ func getWantedRumor(gossiper *Gossiper, s *StatusPacket) *RumorMessage {
 
 			msg := msgs[pos]
 			return &RumorMessage{
-				PeerMessage: msg,
+				Peer: msg,
 			}
 		}
 	}
@@ -253,12 +252,12 @@ func storeRumor(gossiper *Gossiper, rumor *RumorMessage) bool {
 	gossiper.Messages.Lock()
 	defer gossiper.Messages.Unlock()
 
-	msgs := gossiper.Messages.Set[rumor.Origin]
+	msgs := gossiper.Messages.Set[rumor.Peer.Origin]
 
-	if rumor.PeerMessage.ID == uint32(len(msgs))+1 {
-		msgs = append(msgs, rumor.PeerMessage)
+	if rumor.Peer.ID == uint32(len(msgs))+1 {
+		msgs = append(msgs, rumor.Peer)
 		added = true
-		gossiper.Messages.Set[rumor.Origin] = msgs
+		gossiper.Messages.Set[rumor.Peer.Origin] = msgs
 	}
 
 	return added
@@ -280,21 +279,18 @@ func dispatcherPeersterMessage(gossiper *Gossiper) Dispatcher {
 
 			storeRumor(gossiper, r)
 			sendRumor(gossiper, r, fromPeer)
-		}
 
-		if pkg.Status != nil {
-			printStatus(gossiper, fromPeer, pkg.Status)
-			syncStatus(gossiper, fromPeer, pkg.Status)
-		}
-
-		if pkg.Poll != nil {
-			poll := pkg.Poll
+			poll := r.Poll
 			if poll.Question.StartTime.Add(poll.Question.Duration).Before(time.Now()) {
 				handlePoll(gossiper, poll)
 			} else {
 				forwardPoll(gossiper, poll)
 			}
+		}
 
+		if pkg.Status != nil {
+			printStatus(gossiper, fromPeer, pkg.Status)
+			syncStatus(gossiper, fromPeer, pkg.Status)
 		}
 
 	}
