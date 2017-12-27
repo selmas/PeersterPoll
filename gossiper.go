@@ -129,11 +129,12 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	return addr
 }
 
-func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *RumorMessage, status *StatusPacket, pm *PrivateMessage) {
+func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *RumorMessage, status *StatusPacket, pm *PrivateMessage, poll *PollMessage) {
 	toSend, err := protobuf.Encode(&GossipPacket{
 		Rumor:   rumor,
 		Status:  status,
 		Private: pm,
+		Poll:	 poll,
 	})
 
 	if err != nil {
@@ -155,7 +156,7 @@ func sendRumor(gossiper *Gossiper, msg *RumorMessage, fromPeer *net.UDPAddr) {
 			break
 		}
 
-		writeMsgToUDP(gossiper.Server, peer, msg, nil, nil)
+		writeMsgToUDP(gossiper.Server, peer, msg, nil, nil, nil)
 
 		printFlippedCoin(peer, "rumor")
 		if rand.Intn(2) == 0 {
@@ -175,7 +176,7 @@ func sendPrivateMessage(gossiper *Gossiper, previousHop *net.UDPAddr, msg *Priva
 		peer = getRandomPeer(&gossiper.Peers, previousHop)
 	}
 
-	writeMsgToUDP(gossiper.Server, peer, nil, nil, msg)
+	writeMsgToUDP(gossiper.Server, peer, nil, nil, msg, nil)
 }
 
 func peerIsAheadOfUs(gossiper *Gossiper, s *StatusPacket) bool {
@@ -251,9 +252,9 @@ func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, msg *StatusPacket) {
 	rumor := getWantedRumor(gossiper, msg)
 
 	if rumor != nil {
-		writeMsgToUDP(gossiper.Server, peer, rumor, nil, nil)
+		writeMsgToUDP(gossiper.Server, peer, rumor, nil, nil, nil)
 	} else if peerIsAheadOfUs(gossiper, msg) {
-		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper), nil)
+		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper), nil, nil)
 	} else {
 		printInSyncWith(peer)
 	}
@@ -357,7 +358,7 @@ func antiEntropyGossip(gossiper *Gossiper) {
 		}
 
 		printFlippedCoin(peer, "status")
-		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper), nil)
+		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper), nil, nil)
 	}
 }
 
