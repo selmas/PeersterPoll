@@ -97,8 +97,31 @@ type PrivateMessage struct {
 }
 
 
-func checkPollMessage(msg PollMessage) error {
-	// TODO: add checks for PollMessage
+func checkPollPacket(msg PollPacket) error {
+	var nilCount uint = 0
+	var err error = nil
+
+	if msg.Vote != nil {
+		nilCount++
+		err = checkVoteMessage(*msg.Vote)
+	}
+
+	if msg.Question != nil {
+		nilCount++
+		err = checkPollMessage(*msg.Question)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if nilCount > 1 {
+		return errors.New("too much fields defined")
+	} else if nilCount == 0 {
+		return errors.New("no field defined")
+	}
+
+	return nil
 }
 
 func checkPrivateMessage(msg PrivateMessage) error {
@@ -114,7 +137,7 @@ type GossipPacket struct {
 	Rumor   *RumorMessage
 	Status  *StatusPacket
 	Private *PrivateMessage
-	Poll	*PollMessage
+	Poll    *PollPacket
 }
 
 func CheckGossipPacket(pkg *GossipPacket) error {
@@ -138,7 +161,7 @@ func CheckGossipPacket(pkg *GossipPacket) error {
 
 	if pkg.Poll != nil {
 		nilCount++
-		err = checkPollMessage(*pkg.Poll)
+		err = checkPollPacket(*pkg.Poll)
 	}
 
 	if err != nil {

@@ -39,5 +39,15 @@ func commit(x int) {
 }
 
 
+type CommitPedersen struct {
+
+}
+
+type OpenPedersen struct {
+
+}
+
+
+
 
 

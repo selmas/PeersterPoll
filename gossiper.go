@@ -22,6 +22,16 @@ type PeerSet struct {
 	Set map[string]bool
 }
 
+type PollKey struct{
+	PollOrigin string
+	PollID     uint32
+}
+
+type PollSet struct {
+	sync.RWMutex
+	Set map[PollKey]*PollPacket
+}
+
 type MessageSet struct {
 	sync.RWMutex
 	Set map[string][]PeerMessage
@@ -43,6 +53,7 @@ type Gossiper struct {
 	Peers           PeerSet
 	Messages        MessageSet
 	PrivateMessages MessageSet
+	Polls			PollSet
 	Server          *Server
 	Routes          RoutingTable
 }
@@ -83,6 +94,9 @@ func NewGossiper(name string, server *Server) *Gossiper {
 		},
 		PrivateMessages: MessageSet{
 			Set: make(map[string][]PeerMessage),
+		},
+		Polls: PollSet{
+			Set: make(map[PollKey]*PollPacket),
 		},
 		Routes: RoutingTable{
 			Table: make(map[string]Route),
@@ -129,7 +143,7 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	return addr
 }
 
-func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *RumorMessage, status *StatusPacket, pm *PrivateMessage, poll *PollMessage) {
+func writeMsgToUDP(server *Server, peer *net.UDPAddr, rumor *RumorMessage, status *StatusPacket, pm *PrivateMessage, poll *PollPacket) {
 	toSend, err := protobuf.Encode(&GossipPacket{
 		Rumor:   rumor,
 		Status:  status,
@@ -334,8 +348,19 @@ func dispatcherPeersterMessage(gossiper *Gossiper, noForward bool) Dispatcher {
 			}
 		}
 
+		if pkg.Poll != nil {
+			poll := pkg.Poll
+			if poll.Question.StartTime.Add(poll.Question.Duration).Before(time.Now()) {
+				handlePoll(gossiper, poll)
+			} else {
+				forwardPoll(gossiper, poll)
+			}
+
+		}
+
 	}
 }
+
 
 func parseAddr(str string) *net.UDPAddr {
 	addr, err := net.ResolveUDPAddr("udp", str)
