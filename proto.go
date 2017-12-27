@@ -29,6 +29,7 @@ func checkRumorMessage(msg RumorMessage) error {
 type PeerStatus struct {
 	pollKey         *PollKey
 	participantList set.Set
+	pollVote     	set.Set
 }
 
 func checkPeerStatus(msg PeerStatus) error {

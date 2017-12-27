@@ -15,6 +15,7 @@ import (
 	"errors"
 
 	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
+	"os"
 )
 
 type Server struct {
@@ -172,7 +173,6 @@ func sendRumor(gossiper *Gossiper, msg *RumorMessage, fromPeer *net.UDPAddr) {
 	}
 }
 
-// go through received status containing different polls
 
 func peerMissesInformation(gossiper *Gossiper, s *StatusPacket) bool {
 	gossiper.Polls.RLock()
@@ -185,8 +185,9 @@ func peerMissesInformation(gossiper *Gossiper, s *StatusPacket) bool {
 			return true
 		}
 
-		dif := msg.pollVote.Difference(status.participantList)
-		if dif.Cardinality() != 0 {
+		voteDiff := msg.pollVote.Difference(status.pollVote)
+		participantDiff := msg.pollQuestion.Participants.Difference(status.participantList)
+		if voteDiff.Cardinality() != 0 || participantDiff.Cardinality() != 0{
 			return true
 		}
 	}
@@ -203,6 +204,7 @@ func getStatus(gossiper *Gossiper) *StatusPacket {
 	for _, msg := range gossiper.Polls.Set {
 		wanted[i] = PeerStatus{
 			&msg.pollKey,
+			msg.pollVote,
 			msg.pollVote,
 		}
 		i++
