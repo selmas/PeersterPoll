@@ -1,0 +1,43 @@
+#!/bin/sh
+
+
+set -x
+
+. ./test_lib.sh
+
+start_server A 10000 5000 127.0.0.1:5001
+start_server B 10001 5001 127.0.0.1:5000
+
+for filename in "$(get_empty_file)" "$(get_random_file)"
+do
+	num_chunks=$(get_number_of_chunks "$filename")
+	metahash=$(client_index_file 10000 "$filename")
+	client_get_file_from 10001 A "$filename" "$metahash"
+	check_downloaded "$filename"
+
+	log_check B "DOWNLOADING metafile of $filename from A"
+	for chunk in $(seq 1 $num_chunks)
+	do
+		log_check B "DOWNLOADING $filename chunk 1 from A"
+	done
+	log_check B "RECONSTRUCTED file $filename"
+done
+
+start_server C 10002 5002 127.0.0.1:5003
+start_server D 10003 5003 127.0.0.1:5004
+start_server E 10004 5004
+
+for filename in "$(get_empty_file)" "$(get_random_file)"
+do
+	num_chunks=$(get_number_of_chunks "$filename")
+	metahash=$(client_index_file 10004 "$filename")
+
+	search_file 10002 "$filename"
+
+	log_check C "FOUND match $filename at D budget=2 metafile=$metahash chunks=$num_chunks"
+	log_check C "DOWNLOADING metafile of $filename from D"
+	log_check C "SEARCH FINISHED"
+
+	client_get_file_from 10002 "$filename" "$metahash"
+	check_downloaded "$filename"
+done
