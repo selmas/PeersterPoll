@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dedis/protobuf"
-	"crypto/elliptic"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"errors"
+	"github.com/dedis/protobuf"
 
 	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
 )

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"time"
-	"net"
 	set "github.com/deckarep/golang-set"
+	"net"
+	"time"
 )
 
 // TODO: add option for origin node to sign / commit Question to guarantee integrity of it

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-We want to create a  simple voting scheme for the nodes in the network where peers don't influence each other’s vote by publicly displaying their own vote before the result. A user can ask a question, then everyone that wants to, sends their “sealed” vote to each 
+We want to create a  simple voting scheme for the nodes in the network where peers don't influence each other’s vote by publicly displaying their own vote before the result. A user can ask a question, then everyone that wants to, sends their “sealed” vote to each
 other. After dispatching the votes, everyone can locally open the received messages and find out the result. By having this two phases for voting, we ensure that nobody can have even a partial result of the decision of the network.
 To ensure that only the wanted peers are capable of voting, we add a private/public key system for authentication with a simplified GPG’s web of trust. The root key is created by the founder of the vote group and sign other public key of wanted identity, which in turn, can sign others.
 
@@ -15,25 +15,25 @@ Voting Protocol
     In the following we will shortly outline the voting procedure step-by-step. We will use the Peerster network as an underlying structure on which we will build the voting functionality.
 
 ### Round 1:
-1. A peer starts a poll by setting up the QUESTION, VOTE_OPTIONS and TIME_TO_VOTE (which is defined by stating the starting time and duration of the poll), sign the poll and gossip it to all known peers 
+1. A peer starts a poll by setting up the QUESTION, VOTE_OPTIONS and TIME_TO_VOTE (which is defined by stating the starting time and duration of the poll), sign the poll and gossip it to all known peers
 2. Upon receipt of a poll that I have not seen before (check by storing the vote ID = Key{originPeer, seqNr}), check the integrity of the poll by checking the signature and, if correct, forward it to all known peers except the one from whom it was received
 3. Every peer can cast a vote by choosing one of the proposed options, encrypting it, include the vote ID, signing it and forwarding it to all known Peers
 4. Upon receipt of a vote that I have not seen before (check by storing Key{votingPeer, vote ID}, Remark: this mapping from vote to voter is not a problem as the goal is not anonymity but simply to not influence other votes with your own), check the integrity of the vote by checking the signature and, if correct, store it locally before forwarding it to all known peers except the one from whom it was received
 
-### Round 2: 
+### Round 2:
 Once the TIME_TO_VOTE has passed (Remark: we assume that clock are synchronized already, we can add a central time authority if needed but that doesn’t change much)
-1. Upon receipt of a vote, 
-    - if received directly from voter, discard it 
+1. Upon receipt of a vote,
+    - if received directly from voter, discard it
     - if seen before, gossip to reach consensus
     - else, check the integrity of the vote by checking the signature, if correct, store it locally, gossip to reach consensus
 
-### Round 3: 
+### Round 3:
 Once consensus on casted votes is reached To the TAs: We struggled with deciding which algorithm would be most suited for our application.
 
 1. Sign the symmetric key, that was used to encrypt the vote for this poll and the corresponding vote ID and gossip it
 2. Upon receipt of a key that I have not seen before, check the integrity of the vote by checking the signature and, if correct, store it locally before forwarding it to all known peers except the one from whom it was received (Remark: here we assume that our gossiper network, as we created it in the course, has the property of eventual consistency)
 
-### Round 4: 
+### Round 4:
 Once peer has all the symmetric keys or  timed out (to achieve robustness)
 1. Use the keys to locally decrypt all the votes and locally compute the outcome of the poll
 
@@ -49,8 +49,8 @@ In the second part, we will focus on active corruption. Our goal is to be able t
 Peers that cast several different, contradicting answers for the same question (detect this by reaching consensus on the seen commitments)
 Peers that change another peer's vote before forwarding it
 
-In order to identify peers that forward incorrect votes, every message will be signed by the peer casting the vote. Upon receiving a vote, each peer checks the message's integrity and authenticity. 
-A detected inconsistency (two different votes from the same peer A) can either mean peer A casted two different votes or a peer forwarded incorrectly. In the first case, both the vote and the peer A get excluded from the current poll. In the second case, the original vote from peer A will stay in the poll, however the malicious peer who forwarded incorrectly, as well as his vote, will be discarded from the poll. 
+In order to identify peers that forward incorrect votes, every message will be signed by the peer casting the vote. Upon receiving a vote, each peer checks the message's integrity and authenticity.
+A detected inconsistency (two different votes from the same peer A) can either mean peer A casted two different votes or a peer forwarded incorrectly. In the first case, both the vote and the peer A get excluded from the current poll. In the second case, the original vote from peer A will stay in the poll, however the malicious peer who forwarded incorrectly, as well as his vote, will be discarded from the poll.
 A peer which gets excluded from a poll automatically loses some of his reputation, while all peers successfully finishing a poll gains reputation. Below a certain reputation threshold, peers will no longer be allowed to participate or create polls.
 
 
@@ -68,7 +68,7 @@ We will use the same infrastructure of message distribution as the one used in P
 
 ## Design and Architecture
 
-### Authentication scheme: 
+### Authentication scheme:
 To ensure a strong authentication, we will use a kind of distributed CA, it will use a public/private key system. There is a root key, created by the started of the network, or when someone else want to create a different, not related voting group, with full trust. The nodes participating in this voting group can only do so by having it’s own public key crossed signed by the root node, or by someone which was itself signed by the root node, and so on. The public key are physically signed during a small key signing party as having a key distribution via a non-authenticated network, such a the gossiper protocol we use, is not safe. Key signing party can off course be distributed by using another trusted protocol for communication but outside of this project. This is similar to the web of trust of GPG but with only the “signed at some point by the root node” and not the quality of trusting.
 The transmission itself will use the gossiper network. We consider that key signing is trust operation where a node is validated to be fit to the network. If we want stronger garanties, we can require that n person sign the key before accepting it. By having the public key distributed in the gossiper network, we ensure that even if the root node or any element of the link to a peer is down, there is no issue with it, as the trust is forwarded. For an example scenario
 
@@ -83,11 +83,11 @@ To ensure that there is no replaying of message, we will use a monotone vote id 
 
 As every message is authenticated by some mean, if it doesn’t come from the root node or related, we just drop it. This way, we have a sybil attack free network.
 
-Identifying malicious peers: When a peer receives a message, it should be able to verify the message's integrity and authenticity relying on our authenticity scheme to check a digital signature. When a node identifies that a received message was tampered with, the node can suspect the sending node of being the attacker. When this situation is identified the message should be dropped so that other nodes do not suspect a non-malicious node because it forwarded an invalid message. Also we can detect malicious behavior when we receive two different votes authenticated by the same node. Relying on the authentication scheme can allow us to easily identify this node as malicious because no one else but itself could provide this authentication. 
+Identifying malicious peers: When a peer receives a message, it should be able to verify the message's integrity and authenticity relying on our authenticity scheme to check a digital signature. When a node identifies that a received message was tampered with, the node can suspect the sending node of being the attacker. When this situation is identified the message should be dropped so that other nodes do not suspect a non-malicious node because it forwarded an invalid message. Also we can detect malicious behavior when we receive two different votes authenticated by the same node. Relying on the authentication scheme can allow us to easily identify this node as malicious because no one else but itself could provide this authentication.
 
-### Reputation system: 
+### Reputation system:
 Each peer should locally keep a table associating peers to their reputation. The value of this reputation would be initialized to zero and would be decreased every time a peer is suspected. Therefore a negative reputation value means bad behavior. A threshold would define when a peer is assumed to be malicious and after this it would not be able to participate in any future votes.
-In this case we can assume two different types of events which should trigger the decrement of a node's reputation by one unit: 
+In this case we can assume two different types of events which should trigger the decrement of a node's reputation by one unit:
 
 When a message does not pass the integrity check (signature is not valid) the sending node of this message will be suspected
 When a message is not properly authenticated (not signed or signature does not match alleged sender) the sending node of this message will be suspected
@@ -106,7 +106,7 @@ Identify nodes below the threshold and blacklist them
 
 
 ## Evaluation Plan
- 
+
 Conduct several attacks on the network to simulate the malicious peers behavior. The network should be able to resist these attacks, i.e. eventually disable the participation of these malicious nodes.
 
 The possible attacks could be the following behaviors implemented in a Peerster node:

@@ -2,8 +2,8 @@ package main
 
 import (
 	"bytes"
-	"log"
 	"flag"
+	"log"
 	"net/http"
 	"strconv"
 )

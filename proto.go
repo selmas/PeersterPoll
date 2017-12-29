@@ -22,7 +22,7 @@ func checkRumorMessage(msg RumorMessage) error {
 	if err != nil {
 		return errors.New("RumorMessage: " + err.Error())
 	}
-*/
+	*/
 	return nil
 }
 
