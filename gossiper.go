@@ -15,7 +15,6 @@ import (
 	"errors"
 
 	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
-	"os"
 )
 
 type Server struct {
