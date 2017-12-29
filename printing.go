@@ -13,7 +13,7 @@ func printRumor(gossiper *Gossiper, clientAddr *net.UDPAddr, msg *RumorMessage) 
 		"from", clientAddr.String(),
 		"ID", msg.pollKey.PollID,
 		"Question", msg.pollQuestion.Question,
-		"with options", strings.Join(msg.pollQuestion.AnswerOptions, ","),
+		"with options", strings.Join(msg.pollQuestion.VoteOptions, ","),
 	)
 	printPeers(gossiper)
 }
@@ -34,7 +34,6 @@ func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *StatusPacket) {
 func printFlippedCoin(addr *net.UDPAddr, typeOfFlip string) {
 	fmt.Println("FLIPPED COIN sending", typeOfFlip, "to", addr.String())
 }
-
 
 func printPeers(gossiper *Gossiper) {
 	var str string

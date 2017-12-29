@@ -15,14 +15,14 @@ Voting Protocol
     In the following we will shortly outline the voting procedure step-by-step. We will use the Peerster network as an underlying structure on which we will build the voting functionality.
 
 ### Round 1:
-1. A peer starts a poll by setting up the QUESTION, VOTE_OPTIONS and TIME_TO_VOTE, sign the poll and gossip it to all known peers 
-2. Upon receival of a poll that I have not seen before (check by storing the vote ID = Key{originPeer, seqNr}), check the integrity of the poll by checking the signature and, if correct, forward it to all known peers except the one from whom it was received
+1. A peer starts a poll by setting up the QUESTION, VOTE_OPTIONS and TIME_TO_VOTE (which is defined by stating the starting time and duration of the poll), sign the poll and gossip it to all known peers 
+2. Upon receipt of a poll that I have not seen before (check by storing the vote ID = Key{originPeer, seqNr}), check the integrity of the poll by checking the signature and, if correct, forward it to all known peers except the one from whom it was received
 3. Every peer can cast a vote by choosing one of the proposed options, encrypting it, include the vote ID, signing it and forwarding it to all known Peers
-4. Upon receival of a vote that I have not seen before (check by storing Key{votingPeer, vote ID}, Remark: this mapping from vote to voter is not a problem as the goal is not anonymity but simply to not influence other votes with your own), check the integrity of the vote by checking the signature and, if correct, store it locally before forwarding it to all known peers except the one from whom it was received
+4. Upon receipt of a vote that I have not seen before (check by storing Key{votingPeer, vote ID}, Remark: this mapping from vote to voter is not a problem as the goal is not anonymity but simply to not influence other votes with your own), check the integrity of the vote by checking the signature and, if correct, store it locally before forwarding it to all known peers except the one from whom it was received
 
 ### Round 2: 
 Once the TIME_TO_VOTE has passed (Remark: we assume that clock are synchronized already, we can add a central time authority if needed but that doesn’t change much)
-1. Upon receival of a vote, 
+1. Upon receipt of a vote, 
     - if received directly from voter, discard it 
     - if seen before, gossip to reach consensus
     - else, check the integrity of the vote by checking the signature, if correct, store it locally, gossip to reach consensus
@@ -31,7 +31,7 @@ Once the TIME_TO_VOTE has passed (Remark: we assume that clock are synchronized 
 Once consensus on casted votes is reached To the TAs: We struggled with deciding which algorithm would be most suited for our application.
 
 1. Sign the symmetric key, that was used to encrypt the vote for this poll and the corresponding vote ID and gossip it
-2. Upon receival of a key that I have not seen before, check the integrity of the vote by checking the signature and, if correct, store it locally before forwarding it to all known peers except the one from whom it was received (Remark: here we assume that our gossiper network, as we created it in the course, has the property of eventual consistency)
+2. Upon receipt of a key that I have not seen before, check the integrity of the vote by checking the signature and, if correct, store it locally before forwarding it to all known peers except the one from whom it was received (Remark: here we assume that our gossiper network, as we created it in the course, has the property of eventual consistency)
 
 ### Round 4: 
 Once peer has all the symmetric keys or  timed out (to achieve robustness)

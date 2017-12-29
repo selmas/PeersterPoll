@@ -8,11 +8,11 @@ import (
 
 // TODO: add option for origin node to sign / commit Question to guarantee integrity of it
 type Poll struct {
-	Question      string
-	AnswerOptions []string
-	Participants  set.Set // TODO needed (could hold public keys if we use linkable ring signatures)
-	StartTime     time.Time
-	Duration      time.Duration // After duration has passed, can no longer participate in vote
+	Question     string
+	VoteOptions  []string
+	Participants set.Set // TODO needed (could hold public keys if we use linkable ring signatures)
+	StartTime    time.Time
+	Duration     time.Duration // After duration has passed, can no longer participate in vote
 }
 
 type Vote struct {

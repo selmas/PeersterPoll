@@ -29,11 +29,11 @@ func checkRumorMessage(msg RumorMessage) error {
 type PeerStatus struct {
 	pollKey         *PollKey
 	participantList set.Set
-	pollVote     	set.Set
+	pollVote        set.Set
 }
 
 func checkPeerStatus(msg PeerStatus) error {
-	if msg.pollKey.PollID < 0 && msg.pollKey.PollOrigin == ""{
+	if msg.pollKey.PollID < 0 && msg.pollKey.PollOrigin == "" {
 		return errors.New("PeerStatus: illegal pollKey, ID: " + string(int(msg.pollKey.PollID)) + ", Origin: " + msg.pollKey.PollOrigin)
 	}
 

@@ -91,9 +91,9 @@ func NewGossiper(name string, server *Server) *Gossiper {
 	}
 
 	return &Gossiper{
-		Name:   name,
-		KeyPair:keyPair,
-		Server: server,
+		Name:    name,
+		KeyPair: keyPair,
+		Server:  server,
 		Peers: PeerSet{
 			Set: make(map[string]bool),
 		},
@@ -172,7 +172,6 @@ func sendRumor(gossiper *Gossiper, msg *RumorMessage, fromPeer *net.UDPAddr) {
 	}
 }
 
-
 func peerMissesInformation(gossiper *Gossiper, s *StatusPacket) bool {
 	gossiper.Polls.RLock()
 	defer gossiper.Polls.RUnlock()
@@ -186,7 +185,7 @@ func peerMissesInformation(gossiper *Gossiper, s *StatusPacket) bool {
 
 		voteDiff := msg.pollVote.Difference(status.pollVote)
 		participantDiff := msg.pollQuestion.Participants.Difference(status.participantList)
-		if voteDiff.Cardinality() != 0 || participantDiff.Cardinality() != 0{
+		if voteDiff.Cardinality() != 0 || participantDiff.Cardinality() != 0 {
 			return true
 		}
 	}
@@ -219,7 +218,6 @@ func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, msg *StatusPacket) {
 		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper))
 	}
 }
-
 
 func dispatcherPeersterMessage(gossiper *Gossiper) Dispatcher {
 	return func(fromPeer *net.UDPAddr, pkg *GossipPacket) {

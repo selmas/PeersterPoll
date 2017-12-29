@@ -1,134 +1,134 @@
 <html>
-	<head>
-		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
-		<script type="text/javascript">
-function handle_update_map_origin_msgs(selector) {
-	return function(data, _, _) {
-		str = "";
-		Object.entries(data).forEach(function(kv, _, _) {
-			origin = kv[0]
-			msgs = kv[1]
-			msgs.forEach(function(msg, _, _) {
-				str += origin + ": " + msg + "\n";
-			})
-		})
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script type="text/javascript">
+        function handle_update_map_origin_msgs(selector) {
+            return function (data, _, _) {
+                str = "";
+                Object.entries(data).forEach(function (kv, _, _) {
+                    origin = kv[0]
+                    msgs = kv[1]
+                    msgs.forEach(function (msg, _, _) {
+                        str += origin + ": " + msg + "\n";
+                    })
+                })
 
-		$(selector).text(str)
-	}
-}
+                $(selector).text(str)
+            }
+        }
 
-function handle_update_list(selector) {
-	return function(data) {
-		str = ""
-		data.forEach(function(node, _, _) {
-			str += node + "\n"
-		})
-		$(selector).text(str)
-	}
-}
+        function handle_update_list(selector) {
+            return function (data) {
+                str = ""
+                data.forEach(function (node, _, _) {
+                    str += node + "\n"
+                })
+                $(selector).text(str)
+            }
+        }
 
-function update_messages() {
-	$.ajax("/message", {
-		dataType: "json",
-		success: handle_update_map_origin_msgs("#messages"),
-	})
-}
+        function update_messages() {
+            $.ajax("/message", {
+                dataType: "json",
+                success: handle_update_map_origin_msgs("#messages"),
+            })
+        }
 
-function update_nodes() {
-	$.ajax("/node", {
-		dataType: "json",
-		success: handle_update_list("#nodes"),
-	})
-}
+        function update_nodes() {
+            $.ajax("/node", {
+                dataType: "json",
+                success: handle_update_list("#nodes"),
+            })
+        }
 
-function update_id() {
-	$.ajax("/id", {
-		success: function(data, _, _) {
-			$("#id").val(data)
-		},
-	})
-}
+        function update_id() {
+            $.ajax("/id", {
+                success: function (data, _, _) {
+                    $("#id").val(data)
+                },
+            })
+        }
 
-function update_private_messages() {
-	$.ajax("/private_messages", {
-		dataType: "json",
-		success: handle_update_map_origin_msgs("#private_messages"),
-	})
-}
+        function update_private_messages() {
+            $.ajax("/private_messages", {
+                dataType: "json",
+                success: handle_update_map_origin_msgs("#private_messages"),
+            })
+        }
 
-function update_routes() {
-	$.ajax("/routes", {
-		dataType: "json",
-		success: (data) => {
-			$("#routes").html(
-				data.map((node) => {
-					return $("<option>", {
-						value: node,
-						text: node,
-					})
-				})
-			)
-		}
-	})
-}
+        function update_routes() {
+            $.ajax("/routes", {
+                dataType: "json",
+                success: (data) = > {
+                $("#routes").html(
+                    data.map((node) = > {
+                        return $("<option>", {
+                            value: node,
+                            text: node,
+                        })
+                    })
+        )
+        }
+        })
+        }
 
-function send_message() {
-	$.post("/message", $("#message").val(), update_messages)
-};
+        function send_message() {
+            $.post("/message", $("#message").val(), update_messages)
+        };
 
-function add_node() {
-	$.post("/node", $("#node").val(), update_nodes)
-};
+        function add_node() {
+            $.post("/node", $("#node").val(), update_nodes)
+        };
 
-function change_id() {
-	$.post("/id", $("#id").val(), update_id)
-};
+        function change_id() {
+            $.post("/id", $("#id").val(), update_id)
+        };
 
-function send_private_message() {
-	dest = $("#routes").val()
-	text = prompt('message to ' + dest)
-	if (text == null)
-		return
+        function send_private_message() {
+            dest = $("#routes").val()
+            text = prompt('message to ' + dest)
+            if (text == null)
+                return
 
-	$.post("/private_message", JSON.stringify({
-		'dest': dest,
-		'text': text,
-	}), update_private_messages)
-};
+            $.post("/private_message", JSON.stringify({
+                'dest': dest,
+                'text': text,
+            }), update_private_messages)
+        };
 
-update_id()
+        update_id()
 
-update_messages()
-update_nodes()
-update_private_messages()
-update_routes()
+        update_messages()
+        update_nodes()
+        update_private_messages()
+        update_routes()
 
-setInterval(update_messages, 1000)
-setInterval(update_nodes, 1000)
-setInterval(update_private_messages, 1000)
-setInterval(update_routes, 1000)
-		</script>
-	</head>
+        setInterval(update_messages, 1000)
+        setInterval(update_nodes, 1000)
+        setInterval(update_private_messages, 1000)
+        setInterval(update_routes, 1000)
+    </script>
+</head>
 
-	<h2>Chat box</h2>
-	<textarea id="messages" disabled></textarea>
-	<p>
-	<input id="message"/>
-	<button onclick="send_message()">send message</button>
+<h2>Chat box</h2>
+<textarea id="messages" disabled></textarea>
+<p>
+    <input id="message"/>
+    <button onclick="send_message()">send message</button>
 
-	<h2>Node box</h2>
-	<textarea id="nodes" disabled></textarea>
-	<p>
-	<input id="node"/>
-	<button onclick="add_node()">add node</button>
+<h2>Node box</h2>
+<textarea id="nodes" disabled></textarea>
+<p>
+    <input id="node"/>
+    <button onclick="add_node()">add node</button>
 
-	<h2>ID box</h2>
-	<input id="id"/>
-	<button onclick="change_id()">change id</button>
+<h2>ID box</h2>
+<input id="id"/>
+<button onclick="change_id()">change id</button>
 
-	<h2>Private messages box</h2>
-	<textarea id="private_messages" disabled></textarea>
-	<p>
-	<select id="routes"></select>
-	<button onclick="send_private_message()">send private message</button>
+<h2>Private messages box</h2>
+<textarea id="private_messages" disabled></textarea>
+<p>
+    <select id="routes"></select>
+    <button onclick="send_private_message()">send private message</button>
 </html>

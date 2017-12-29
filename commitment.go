@@ -16,7 +16,6 @@ var curve elliptic.Curve
 //BitSize int      // the size of the underlying field
 //Name    string   // the canonical name of the curve
 
-
 var random *rand.Rand
 
 func setup() error {
