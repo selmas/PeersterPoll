@@ -5,7 +5,6 @@ import (
 	"net"
 	"time"
 	"log"
-	"errors"
 )
 
 // TODO: add option for origin node to sign / commit Question to guarantee integrity of it
