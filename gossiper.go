@@ -198,7 +198,7 @@ func getStatus(gossiper *Gossiper) *StatusPacket {
 	}
 }
 
-
+// Todo: how to properly use mapset.Set ???
 func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, s *StatusPacket) {
 	gossiper.Polls.RLock()
 	defer gossiper.Polls.RUnlock()

@@ -4,6 +4,8 @@ import (
 	set "github.com/deckarep/golang-set"
 	"net"
 	"time"
+	"log"
+	"errors"
 )
 
 // TODO: add option for origin node to sign / commit Question to guarantee integrity of it
@@ -62,6 +64,16 @@ func handleOpenPoll(gossiper *Gossiper, msg RumorMessage, fromPeer *net.UDPAddr)
 	}
 }
 
-func handleClientVote(vote *Vote) {
+func handleClientVote(vote *Vote, key PollKey, gossiper Gossiper) {
+	gossiper.Polls.Lock()
+	defer gossiper.Polls.Unlock()
 
+	poll, succ := gossiper.Polls.m[key]
+
+	if !succ {
+		log.Fatal("Invalide client request received: Poll not found")
+		return
+	}
+	gossiper.Polls.m[key].votes.Add(vote)
+	sendRumor(&gossiper, &RumorMessage{key, poll.poll, vote}, gossiper.Server.Addr)
 }
