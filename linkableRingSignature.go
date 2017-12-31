@@ -3,8 +3,7 @@ package main
 import (
 	"math/big"
 	"crypto/sha256"
-	"bytes"
-	"encoding/binary"
+	"strconv"
 	"fmt"
 )
 
@@ -35,31 +34,31 @@ func mapToPoint(input []byte) (x, y *big.Int){
 	p := curve.Params().P
 	hash := sha256.New()
 
-	var exp big.Int
-	exp.Div(exp.Sub(p, big.NewInt(1)), big.NewInt(2)) // (p-1)/2
-
 	for {
-		buf := new(bytes.Buffer)
-		err := binary.Write(buf, binary.LittleEndian, i)
+		_, err := hash.Write(append([]byte(strconv.Itoa(i)),input...))
 		if err != nil {
-			fmt.Println("binary.Write failed:", err)
+			fmt.Println("hash.Write failed:", err)
 		}
 
-		hash.Write(append(buf.Bytes(),input...))
 		hashBytes := hash.Sum(nil)
+		x = new(big.Int).SetBytes(hashBytes)
 
-		if x.SetBytes(hashBytes).Cmp(p) == -1 {
-			var yPow2, xPow3, xTripled *big.Int
-			// y^2 = x^3 + ax + b mod p
-			// for NIST Prime Curves (incl P-256) a == p - 3
-			// y^2 = x^3 - 3x + b mod p
-			xPow3.Exp(x,big.NewInt(3),p) // x^3
-			xTripled.Mul(x, big.NewInt(3))
-			yPow2.Mod(yPow2.Add(yPow2.Sub(xPow3, xTripled),curve.Params().B),p)
+		if x.Cmp(p) == -1 {
+			// y² = x³ - 3x + b
+			x3 := new(big.Int).Mul(x, x)
+			x3.Mul(x3, x)
 
-			sqrtExist := y.ModSqrt(x, p) // returns nil if x not square mod p
+			threeX := new(big.Int).Lsh(x, 1)
+			threeX.Add(threeX, x)
 
-			if sqrtExist != nil {
+			beta := new(big.Int).Sub(x3, threeX)
+			beta.Add(beta, curve.Params().B)
+
+			y2 := new(big.Int).Mod(beta, p)
+
+			// returns nil if beta not square mod p
+			y = new(big.Int)
+			if y.ModSqrt(y2, p) != nil {
 				return x,y
 			}
 		}
