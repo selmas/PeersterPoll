@@ -23,8 +23,8 @@ func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *StatusPacket) {
 	str += "STATUS from " + addr.String()
 
 	for _, s := range msg.Want {
-		str += " poll origin " + s.pollKey.PollOrigin
-		str += " ID " + strconv.FormatUint(uint64(s.pollKey.PollID), 10)
+		str += " poll origin " + s.key.PollOrigin
+		str += " ID " + strconv.FormatUint(uint64(s.key.PollID), 10)
 		str += " participants " + s.participantList.String() // TODO what we want?
 	}
 	fmt.Println(str)
