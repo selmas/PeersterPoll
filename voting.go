@@ -10,9 +10,9 @@ import (
 type Poll struct {
 	Question     string
 	VoteOptions  []string
-	Participants set.Set // TODO needed (could hold public keys if we use linkable ring signatures)
+	Participants set.Set // TODO set of public keys if we add support for linkable ring signatures
 	StartTime    time.Time
-	Duration     time.Duration // After duration has passed, can no longer participate in vote
+	Duration     time.Duration // After duration has passed, can no longer participate in votes
 }
 
 type Vote struct {
@@ -21,20 +21,27 @@ type Vote struct {
 	OpenedVal    OpenPedersen
 }
 
+func handleClosedPoll(gossiper *Gossiper, rumor RumorMessage, fromPeer *net.UDPAddr) {
+	// TODO reach consensus on committed votes
+	// TODO open commitment
+	// TODO tally poll and display result
+}
+
+
 // this method processes the poll locally
 // first the poll gets stored
 // if the poll was already stored, check if we received a newer version
 // the poll storage is updated if the received version is newer
 // if the sender of the poll doesn't have the newest version of the poll
 // reply to sender with the stored version of the poll
-func handlePoll(gossiper *Gossiper, msg RumorMessage, fromPeer *net.UDPAddr) {
+func handleOpenPoll(gossiper *Gossiper, msg RumorMessage, fromPeer *net.UDPAddr) {
 	gossiper.Polls.Lock()
 	defer gossiper.Polls.Unlock()
 
-	storedPoll, isStored := gossiper.Polls.Set[msg.pollKey]
+	storedPoll, isStored := gossiper.Polls.m[msg.pollKey]
 
 	if !isStored {
-		gossiper.Polls.Set[msg.pollKey] = &msg
+		gossiper.Polls.m[msg.pollKey] = &msg
 		sendRumor(gossiper, &msg, fromPeer)
 	} else {
 		// Update stored participant list
@@ -47,6 +54,6 @@ func handlePoll(gossiper *Gossiper, msg RumorMessage, fromPeer *net.UDPAddr) {
 	}
 }
 
-func handleVote(vote *Vote) {
+func handleClientVote(vote *Vote) {
 
 }

@@ -14,6 +14,7 @@ import (
 	"errors"
 	"github.com/dedis/protobuf"
 
+	set "github.com/deckarep/golang-set"
 	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
 )
 
@@ -34,7 +35,12 @@ type PollKey struct {
 
 type PollSet struct {
 	sync.RWMutex
-	Set map[PollKey]*RumorMessage
+	m map[PollKey]*VoteSet
+}
+
+type VoteSet struct {
+	poll 	*Poll
+	votes	set.Set
 }
 
 type Route struct {
@@ -98,7 +104,7 @@ func NewGossiper(name string, server *Server) *Gossiper {
 			Set: make(map[string]bool),
 		},
 		Polls: PollSet{
-			Set: make(map[PollKey]*RumorMessage),
+			m: make(map[PollKey]*VoteSet),
 		},
 	}
 }
@@ -172,38 +178,17 @@ func sendRumor(gossiper *Gossiper, msg *RumorMessage, fromPeer *net.UDPAddr) {
 	}
 }
 
-func peerMissesInformation(gossiper *Gossiper, s *StatusPacket) bool {
-	gossiper.Polls.RLock()
-	defer gossiper.Polls.RUnlock()
-
-	for _, status := range s.Want {
-		msg, found := gossiper.Polls.Set[*status.pollKey]
-
-		if !found {
-			return true
-		}
-
-		voteDiff := msg.pollVote.Difference(status.pollVote)
-		participantDiff := msg.pollQuestion.Participants.Difference(status.participantList)
-		if voteDiff.Cardinality() != 0 || participantDiff.Cardinality() != 0 {
-			return true
-		}
-	}
-
-	return false
-}
-
 func getStatus(gossiper *Gossiper) *StatusPacket {
 	gossiper.Polls.Lock()
 	defer gossiper.Polls.Unlock()
 
-	wanted := make([]PeerStatus, len(gossiper.Polls.Set))
+	wanted := make([]PollStatus, len(gossiper.Polls.m))
 	i := 0
-	for _, msg := range gossiper.Polls.Set {
-		wanted[i] = PeerStatus{
-			&msg.pollKey,
-			msg.pollQuestion.Participants,
-			msg.pollVote,
+	for key, msg := range gossiper.Polls.m {
+		wanted[i] = PollStatus{
+			&key,
+			msg.poll,
+			msg.votes,
 		}
 		i++
 	}
@@ -213,8 +198,42 @@ func getStatus(gossiper *Gossiper) *StatusPacket {
 	}
 }
 
-func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, msg *StatusPacket) {
-	if peerMissesInformation(gossiper, msg) {
+
+func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, s *StatusPacket) {
+	gossiper.Polls.RLock()
+	defer gossiper.Polls.RUnlock()
+
+	// store vector clocks as sets
+	receivedPolls := set.NewSetFromSlice([]interface{}{
+		s.Want,
+	})
+	storedPolls := set.NewSetFromSlice([]interface{}{
+		getStatus(gossiper),
+	})
+
+	// Update my Poll storage
+	for _, status := range s.Want {
+		msg, found := gossiper.Polls.m[*status.key]
+
+		// if I don't have it, add it
+		if !found {
+			gossiper.Polls.m[*status.key] = &VoteSet{status.poll, &status.votes}
+			break
+		}
+
+		voteDiff := status.votes.Difference(msg.votes)
+		if voteDiff.Cardinality() != 0 {
+			gossiper.Polls.m[*status.key].votes = msg.votes.Union(status.votes)
+		}
+
+		participantDiff := status.poll.Participants.Difference(msg.poll.Participants)
+		if participantDiff.Cardinality() != 0 {
+			gossiper.Polls.m[*status.key].poll.Participants = msg.poll.Participants.Union(status.poll.Participants)
+		}
+	}
+
+	// Compare vector clocks and send my updated vc if peer misses information
+	if storedPolls.Difference(receivedPolls).Cardinality() != 0 { // Todo: test this difference !!
 		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper))
 	}
 }
@@ -233,13 +252,11 @@ func dispatcherPeersterMessage(gossiper *Gossiper) Dispatcher {
 			rumor := pkg.Rumor
 			printRumor(gossiper, fromPeer, rumor)
 
-			// TODO handle rumor
-
 			poll := rumor.pollQuestion
 			if poll.StartTime.Add(poll.Duration).Before(time.Now()) {
-				handlePoll(gossiper, *rumor, fromPeer)
+				handleOpenPoll(gossiper, *rumor, fromPeer)
 			} else {
-				sendRumor(gossiper, rumor, fromPeer)
+				handleClosedPoll(gossiper, *rumor, fromPeer)
 			}
 		}
 

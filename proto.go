@@ -8,40 +8,54 @@ import (
 type RumorMessage struct {
 	pollKey      PollKey
 	pollQuestion *Poll
-	pollVote     set.Set
+	pollVote     *Vote
 }
 
 // TODO check rumor message
 func checkRumorMessage(msg RumorMessage) error {
-	/*err := checkMessageID(msg.pollKey)
-	if err != nil {
-		return errors.New("RumorMessage: " + err.Error())
+	var nilCount uint = 0
+	var err error = nil
+
+	/*if msg.pollQuestion != nil {
+		nilCount++
+		err = checkPoll(*msg.pollQuestion)
 	}
 
-	err = checkPollPacket(msg.pollQuestion)
+	if msg.pollVote != nil {
+		nilCount++
+		err = checkVote(*msg.pollVote)
+	}
+
+	err = checkPollID(msg.pollKey)*/
+
 	if err != nil {
 		return errors.New("RumorMessage: " + err.Error())
 	}
-	*/
+	if nilCount > 1 {
+		return errors.New("too much fields defined")
+	} else if nilCount == 0 {
+		return errors.New("no field defined")
+	}
+
 	return nil
 }
 
-type PeerStatus struct {
-	pollKey         *PollKey
-	participantList set.Set
-	pollVote        set.Set
+type PollStatus struct {
+	key   *PollKey
+	poll  *Poll
+	votes set.Set
 }
 
-func checkPeerStatus(msg PeerStatus) error {
-	if msg.pollKey.PollID < 0 && msg.pollKey.PollOrigin == "" {
-		return errors.New("PeerStatus: illegal pollKey, ID: " + string(int(msg.pollKey.PollID)) + ", Origin: " + msg.pollKey.PollOrigin)
+func checkPeerStatus(msg PollStatus) error {
+	if msg.key.PollID < 0 && msg.key.PollOrigin == "" {
+		return errors.New("PollStatus: illegal key, ID: " + string(int(msg.key.PollID)) + ", Origin: " + msg.key.PollOrigin)
 	}
 
 	return nil
 }
 
 type StatusPacket struct {
-	Want []PeerStatus
+	Want []PollStatus
 }
 
 func checkStatusPacket(msg StatusPacket) error {
