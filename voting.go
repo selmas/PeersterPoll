@@ -41,16 +41,24 @@ func handleOpenPoll(gossiper *Gossiper, msg RumorMessage, fromPeer *net.UDPAddr)
 	storedPoll, isStored := gossiper.Polls.m[msg.pollKey]
 
 	if !isStored {
-		gossiper.Polls.m[msg.pollKey] = &msg
+		votes := set.NewSet()
+		votes.Add(msg.pollVote)
+
+		gossiper.Polls.m[msg.pollKey] = &VoteSet{msg.pollQuestion,votes}
 		sendRumor(gossiper, &msg, fromPeer)
 	} else {
 		// Update stored participant list
-		storedPoll.pollQuestion.Participants = storedPoll.pollQuestion.Participants.Union(msg.pollQuestion.Participants)
+		storedPoll.poll.Participants = storedPoll.poll.Participants.Union(msg.pollQuestion.
+			Participants)
+
 		// if sender is missing participants, send updated poll back
-		if storedPoll.pollQuestion.Participants.Difference(msg.pollQuestion.Participants).Cardinality() != 0 {
-			writeMsgToUDP(gossiper.Server, fromPeer, storedPoll, nil)
+		if storedPoll.poll.Participants.Difference(msg.pollQuestion.Participants).Cardinality() != 0 {
+			// Update participant list in rumor message
+			msg.pollQuestion.Participants = storedPoll.poll.Participants
+			writeMsgToUDP(gossiper.Server, fromPeer, &msg, nil)
 		}
-		sendRumor(gossiper, storedPoll, fromPeer)
+
+		sendRumor(gossiper, &msg, fromPeer)
 	}
 }
 
