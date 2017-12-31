@@ -30,7 +30,7 @@ func TestDifferentInputMapsToDifferentPoints(t  *testing.T){
 	X2, Y2 := mapToPoint(input2)
 
 	if X1.Cmp(X2) == 0 && Y1.Cmp(Y2) == 0 {
-		t.Errorf("Mapped different input to same point, got:\n X = %d \n Y = %d ", X1,Y1)
+		t.Errorf("Mapped different input to same point, got:\n X = %d \n tag = %d ", X1,Y1)
 	}
 }
 
@@ -41,6 +41,6 @@ func TestMapToPointReturnsPointOnCurve(t  *testing.T)  {
 	X1, Y1 := mapToPoint(input)
 
 	if !curve.IsOnCurve(X1,Y1) {
-		t.Errorf("Point not on curve, got:\n X = %d \n Y = %d", X1, Y1)
+		t.Errorf("Point not on curve, got:\n X = %d \n tag = %d", X1, Y1)
 	}
 }
