@@ -1,10 +1,6 @@
 package main
 
-import (
-	"net"
-)
-
-type ReputationTable map[*net.UDPAddr]*Reputation
+type ReputationTable map[string]*Reputation
 
 type Reputation struct {
 	Value int
@@ -18,15 +14,13 @@ func newReputation() *Reputation {
 	}
 }
 
-//func ResetRepTable(repTable map[*net.UDPAddr]*Reputation) {}
-
 func (repTable ReputationTable) NextRound() {
 	for _, rep := range repTable {
 		rep.IsOld = true
 	}
 }
 
-func (repTable ReputationTable) Trust(peer *net.UDPAddr) {
+func (repTable ReputationTable) Trust(peer string) {
 	_, exists := repTable[peer]
 
 	if !exists {
@@ -39,7 +33,7 @@ func (repTable ReputationTable) Trust(peer *net.UDPAddr) {
 	}
 }
 
-func (repTable ReputationTable) Suspect(peer *net.UDPAddr) {
+func (repTable ReputationTable) Suspect(peer string) {
 	_, exists := repTable[peer]
 
 	if !exists {
@@ -52,12 +46,25 @@ func (repTable ReputationTable) Suspect(peer *net.UDPAddr) {
 	}
 }
 
-func isBlacklisted(peer *net.UDPAddr) bool {
-	return false
+type Blacklist map[string]bool
+
+func (bl Blacklist) isBlacklisted(peer string) bool {
+	return bl[peer]
 }
 
-func blacklist(peer *net.UDPAddr) {
+func (bl Blacklist) blacklist(peer string) {
+	bl[peer] = true
+}
 
+func (repTable ReputationTable) updateBlacklist(bList Blacklist) {
+	//TODO threshold
+	threshold := -12 //THIS IS NOT OKAY
+
+	for peer, rep := range repTable {
+		if rep.Value < threshold {
+			bList.blacklist(peer)
+		}
+	}
 }
 
 func updateReputations() {
