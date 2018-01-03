@@ -5,23 +5,25 @@ import (
 	"crypto/sha256"
 	"strconv"
 	"fmt"
+	"math/rand"
+	"time"
 )
 
 // msg contains hash of message to get signed
 type LinkableRingSignature struct {
 	msg []byte
 	c0  []byte
-	s   []*big.Int
-	tag []*big.Int
+	s   []big.Int
+	tag [2]*big.Int
 }
 
 func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) LinkableRingSignature {
-	if L[0][pos].Cmp(gossiper.KeyPair.X) != 0 && L[1][pos].Cmp(gossiper.KeyPair.Y) != 0{
+	if L[pos][0].Cmp(gossiper.KeyPair.X) != 0 && L[pos][1].Cmp(gossiper.KeyPair.Y) != 0{
 		fmt.Println("Linkable ring signature generation failed: public key not in L")
 		return LinkableRingSignature{}
 	}
 
-	var tag []*big.Int
+	var tag [2]*big.Int
 	var pubKeys []byte
 	for _, keyPair := range L {
 		pubKeys = append(pubKeys, keyPair[0].Bytes()...)
@@ -29,12 +31,15 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) Linkabl
 	}
 
 	Hx, Hy := mapToPoint(pubKeys)
+	println("hx", Hx,"hy", Hy)
 	p := curve.Params().P
 
 	tag[0], tag[1] = curve.ScalarMult(Hx, Hy, gossiper.KeyPair.D.Bytes())
+	println("tag", tag[0], tag[1])
 
+	r := rand.New(rand.NewSource(time.Now().Unix()))
 	u := new(big.Int)
-	u.Rand(random, p)
+	u.Rand(r, p)
 
 	commonPart := pubKeys
 	commonPart = append(append(commonPart, tag[0].Bytes()...), tag[1].Bytes()...)
@@ -54,14 +59,19 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) Linkabl
 
 	// c[pos] = hash(L, Tag, msg, uG, uH)
 	c := make([][]byte, len(L))
-	c[pos+1] = hash.Sum(nil)
+	if pos == len(L)-1{
+		c[0] = hash.Sum(nil)
+	} else {
+		c[pos+1] = hash.Sum(nil)
+	}
 
-	s := make([]*big.Int, len(L))
+
+	s := make([]big.Int, len(L))
 
 	// c[i] = hash(L, Tag, msg, siG + siYi, siH + ciTag)
 	// c[pos+2] to c[len(L)-1], c[0]
 	for i := pos+1; i < len(L); i++  {
-		s[i].Rand(random, p)
+		s[i].Rand(r, p)
 
 		siGx, siGy := curve.ScalarBaseMult(s[i].Bytes())
 		siYix, siYiy := curve.ScalarMult(L[i][0], L[i][1], s[i].Bytes())
@@ -90,7 +100,7 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) Linkabl
 	// c[i] = hash(L, Tag, msg, siG + siYi, siH + ciTag)
 	// c[1] to c[pos]
 	for i := 0; i < pos ; i++ {
-		s[i].Rand(random, p)
+		s[i].Rand(r, p)
 
 		siGx, siGy := curve.ScalarBaseMult(s[i].Bytes())
 		siYix, siYiy := curve.ScalarMult(L[i][0], L[i][1], s[i].Bytes())
@@ -113,11 +123,11 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) Linkabl
 
 	// s_pos = u - privKey * c[pos]
 	s[pos].Sub(u,s[pos].Mul(gossiper.KeyPair.D, new(big.Int).SetBytes(c[pos])))
+	println("c0",c[0])
 	return LinkableRingSignature{msg, c[0], s, tag}
 }
 
 func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
-	// todo: find better way to convert []crypto.Pubkeys to []byte
 	var pubKeys []byte
 	for _, keyPair := range L {
 		pubKeys = append(pubKeys, keyPair[0].Bytes()...)
@@ -125,10 +135,12 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
 	}
 
 	Hx, Hy := mapToPoint(pubKeys)
+	println("hx", Hx,"hy", Hy )
 
-	// todo: 2-dim slices ??
+	// todo: []crypto.PublicKey instead of 2-dim slices ??
 	c := make([][]byte, len(L)+1)
 	c[0] = sig.c0
+	println("c0",c[0])
 	hash := sha256.New()
 
 	// hash(L, Tag, msg, si*G + ci*Yi, si*H + ci*Tag)
@@ -154,7 +166,7 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
 		c[i+1] = hash.Sum(nil)
 	}
 
-	if string(c[0]) == string(c[len(L)+1]) {
+	if string(c[0]) == string(c[len(L)]) {
 		return true
 	}
 	return false
