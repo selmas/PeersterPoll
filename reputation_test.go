@@ -11,158 +11,6 @@ import (
 	os.Exit(retCode)
 }*/
 
-/*func TestSuspect(t *testing.T) {
-
-	repTab := make(ReputationTable)
-
-	addr, _ := net.ResolveUDPAddr("udp4", "127.0.0.1:8000")
-	peer := addr.String()
-
-	repTab.Suspect(peer)
-	if repTab[peer].Value != -1 {
-		t.Error("Didn't update reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Didn't update reputation status")
-	}
-
-	repTab.Suspect(peer)
-	if repTab[peer].Value != -1 {
-		t.Error("Wrongly updated reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Wrongly updated reputation status")
-	}
-}
-
-func TestTrust(t *testing.T) {
-
-	repTab := make(ReputationTable)
-
-	addr, _ := net.ResolveUDPAddr("udp4", "127.0.0.1:8000")
-	peer := addr.String()
-
-	repTab.Trust(peer)
-	if repTab[peer].Value != 1 {
-		t.Error("Didn't update reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Didn't update reputation status")
-	}
-
-	repTab.Trust(peer)
-	if repTab[peer].Value != 1 {
-		t.Error("Wrongly updated reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Wrongly updated reputation status")
-	}
-}
-
-func TestSuspectTrust(t *testing.T) {
-
-	repTab := make(ReputationTable)
-
-	addr, _ := net.ResolveUDPAddr("udp4", "127.0.0.1:8000")
-	peer := addr.String()
-
-	repTab.Suspect(peer)
-	if repTab[peer].Value != -1 {
-		t.Error("Didn't update reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Didn't update reputation status")
-	}
-
-	repTab.Trust(peer)
-	if repTab[peer].Value != -1 {
-		t.Error("Wrongly updated reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Wrongly updated reputation status")
-	}
-}
-
-func TestTrustSuspect(t *testing.T) {
-
-	repTab := make(ReputationTable)
-
-	addr, _ := net.ResolveUDPAddr("udp4", "127.0.0.1:8000")
-	peer := addr.String()
-
-	repTab.Trust(peer)
-	if repTab[peer].Value != 1 {
-		t.Error("Didn't update reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Didn't update reputation status")
-	}
-
-	repTab.Suspect(peer)
-	if repTab[peer].Value != 1 {
-		t.Error("Wrongly updated reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Wrongly updated reputation status")
-	}
-}
-
-func TestFiveRounds(t *testing.T) {
-	repTab := make(ReputationTable)
-
-	addr, _ := net.ResolveUDPAddr("udp4", "127.0.0.1:8000")
-	peer := addr.String()
-
-	repTab.Suspect(peer)
-	if repTab[peer].Value != -1 {
-		t.Error("Didn't update reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Didn't update reputation status")
-	}
-
-	repTab.NextRound()
-
-	repTab.Trust(peer)
-	if repTab[peer].Value != 0 {
-		t.Error("Didn't update reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Didn't update reputation status")
-	}
-
-	repTab.NextRound()
-
-	repTab.Trust(peer)
-	if repTab[peer].Value != 1 {
-		t.Error("Didn't update reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Didn't update reputation status")
-	}
-
-	repTab.NextRound()
-
-	repTab.Trust(peer)
-	if repTab[peer].Value != 2 {
-		t.Error("Didn't update reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Didn't update reputation status")
-	}
-
-	repTab.NextRound()
-
-	repTab.Suspect(peer)
-	if repTab[peer].Value != 1 {
-		t.Error("Didn't update reputation value")
-	}
-	if repTab[peer].IsOld {
-		t.Error("Didn't update reputation status")
-	}
-
-}*/
-
 func TestBlacklist(t *testing.T) {
 	bl := make(Blacklist)
 	peerA := "peerA"
@@ -189,7 +37,6 @@ func TestOpinions(t *testing.T) {
 	peerB := "peerB"
 	peerC := "peerC"
 
-	// round 1
 	opinionsA := make(RepOpinions)
 	opinionsB := make(RepOpinions)
 	opinionsC := make(RepOpinions)
@@ -206,7 +53,10 @@ func TestOpinions(t *testing.T) {
 	opinionsC.Suspect(peerB)
 	opinionsC.Trust(peerC)
 
-	listOpinions := append(make([]RepOpinions, 0), opinionsA, opinionsB, opinionsC)
+	listOpinions := make(map[string]RepOpinions)
+	listOpinions[peerA] = opinionsA
+	listOpinions[peerB] = opinionsB
+	listOpinions[peerC] = opinionsC
 
 	repTabA.AddReputations(listOpinions)
 	repTabB.AddReputations(listOpinions)

@@ -2,25 +2,7 @@ package main
 
 import "strconv"
 
-type ReputationMap map[string]*Reputation
-
-type ReputationTable struct {
-	Reputations ReputationMap
-	Threshold   int
-}
-
-func NewReputationTable(threshold int) ReputationTable {
-	return ReputationTable{
-		Reputations: make(ReputationMap),
-		Threshold:   threshold,
-	}
-}
-
-type Reputation struct {
-	Value int
-	Peer  string
-	//IsOld bool
-}
+// Reputation Opinions ---------------------------------------------------------------------------
 
 type RepOpinions map[string]int
 
@@ -36,7 +18,7 @@ func (opinions RepOpinions) Trust(peer string) {
 	}
 }
 
-func invalidOpinion(opinions RepOpinions) bool {
+func (opinions RepOpinions) hasInvalidOpinion() bool {
 	for _, rep := range opinions {
 		if rep != 1 && rep != -1 {
 			return true
@@ -45,19 +27,42 @@ func invalidOpinion(opinions RepOpinions) bool {
 	return false
 }
 
+// Reputation ------------------------------------------------------------------------------------
+
+type Reputation struct {
+	Value int
+	Peer  string
+}
+
+type ReputationMap map[string]*Reputation
+
+type ReputationTable struct {
+	Reputations ReputationMap
+	Threshold   int
+}
+
+func NewReputationTable(threshold int) ReputationTable {
+	return ReputationTable{
+		Reputations: make(ReputationMap),
+		Threshold:   threshold,
+	}
+}
+
 /*
 Input a slice with all the received opinions.
 They will all be added and will update the reputation table.
 Reputations above 0 are not allowed so after adding everything,
 all the reputations above 0 are set to 0.
 */
-func (repTable ReputationTable) AddReputations(allOpinions []RepOpinions) {
+func (repTable ReputationTable) AddReputations(allOpinions map[string]RepOpinions) {
+	//TODO set threshold according to number of peers that gave opinion?
+
 	for _, peerOpinions := range allOpinions {
 
 		// If a peer has an invalid opinion of another peer
 		// none of its opinions will be taken into account
-		// TODO should this peer be blacklisted???
-		if invalidOpinion(peerOpinions) {
+		// TODO should this peer be blacklisted?? if so, would all honest peers do this?
+		if peerOpinions.hasInvalidOpinion() {
 			continue
 		}
 
@@ -100,13 +105,7 @@ func (repTable ReputationTable) String() string {
 	return str
 }
 
-type ReputationPacket struct {
-	Opinions RepOpinions
-
-	//TODO change
-	PollID    uint64 //TODO change according to representation
-	Signature []byte //TODO change according to representation
-}
+// Blacklist -------------------------------------------------------------------------------------
 
 type Blacklist map[string]bool
 
@@ -139,6 +138,16 @@ func (bList Blacklist) String() string {
 	}
 
 	return str
+}
+
+// ... -------------------------------------------------------------------------------------------
+
+type ReputationPacket struct {
+	Opinions RepOpinions
+
+	//TODO change
+	PollID    uint64 //TODO change according to representation
+	Signature []byte //TODO change according to representation
 }
 
 func updateReputations() {
