@@ -27,6 +27,21 @@ func (opinions RepOpinions) hasInvalidOpinion() bool {
 	return false
 }
 
+// to store a peer's opinions and associate it with the peer
+type OpinionsMap map[string]RepOpinions
+
+func (opinions OpinionsMap) Add(peer string, opn RepOpinions) {
+	_, exists := opinions[peer]
+
+	// if a peer tries to send its opinion two times to manipulate reputations
+	// its opinion is not taken into account at all
+	if exists {
+		delete(opinions, peer)
+	} else {
+		opinions[peer] = opn
+	}
+}
+
 // Reputation ------------------------------------------------------------------------------------
 
 type Reputation struct {
@@ -49,12 +64,12 @@ func NewReputationTable(threshold int) ReputationTable {
 }
 
 /*
-Input a slice with all the received opinions.
-They will all be added and will update the reputation table.
+Input an OpinionsMap with all the received opinions.
+They will all be added and this will update the reputation table.
 Reputations above 0 are not allowed so after adding everything,
 all the reputations above 0 are set to 0.
 */
-func (repTable ReputationTable) AddReputations(allOpinions map[string]RepOpinions) {
+func (repTable ReputationTable) AddReputations(allOpinions OpinionsMap) {
 	//TODO set threshold according to number of peers that gave opinion?
 
 	for _, peerOpinions := range allOpinions {
