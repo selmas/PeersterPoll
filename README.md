@@ -46,8 +46,8 @@ In the basic set-up of the voting scheme we want to archive the following securi
 
 In the second part, we will focus on active corruption. Our goal is to be able to identify maliciously acting peers in the network and use a reputation system to create incentives of behaving while preventing the detected misbehavior to influence the vote in a unallowed fashion. The different cases of malicious peers we will consider for now are (this list can be expanded as the project evolves):
 
-Peers that cast several different, contradicting answers for the same question (detect this by reaching consensus on the seen commitments)
-Peers that change another peer's vote before forwarding it
+- Peers that cast several different, contradicting answers for the same question (the identity of such peer is exposed by the traceable ring signature scheme when a signature is used twice)
+- Peers that change another peer's vote before forwarding it
 
 In order to identify peers that forward incorrect votes, every message will be signed by the peer casting the vote. Upon receiving a vote, each peer checks the message's integrity and authenticity.
 A detected inconsistency (two different votes from the same peer A) can either mean peer A casted two different votes or a peer forwarded incorrectly. In the first case, both the vote and the peer A get excluded from the current poll. In the second case, the original vote from peer A will stay in the poll, however the malicious peer who forwarded incorrectly, as well as his vote, will be discarded from the poll.
@@ -83,26 +83,36 @@ To ensure that there is no replaying of message, we will use a monotone vote id 
 
 As every message is authenticated by some mean, if it doesn’t come from the root node or related, we just drop it. This way, we have a sybil attack free network.
 
-Identifying malicious peers: When a peer receives a message, it should be able to verify the message's integrity and authenticity relying on our authenticity scheme to check a digital signature. When a node identifies that a received message was tampered with, the node can suspect the sending node of being the attacker. When this situation is identified the message should be dropped so that other nodes do not suspect a non-malicious node because it forwarded an invalid message. Also we can detect malicious behavior when we receive two different votes authenticated by the same node. Relying on the authentication scheme can allow us to easily identify this node as malicious because no one else but itself could provide this authentication.
+###Identifying malicious peers:
+When a peer receives a message, it should be able to verify the message's integrity and authenticity relying on our authenticity scheme to check a digital signature. When a node identifies that a received message was tampered with, the node can suspect the forwarding node of being malicious. When this situation is identified the message should be dropped so that other nodes do not suspect a non-malicious node because it forwarded an invalid message.
+
+Also we can detect malicious behavior when we receive two different votes authenticated by the same node. Relying on the authentication scheme can allow us to easily identify this node as malicious as the traceable signature scheme exposes the identity of a peer signing two different messages in the same round.
 
 ### Reputation system:
-Each peer should locally keep a table associating peers to their reputation. The value of this reputation would be initialized to zero and would be decreased every time a peer is suspected. Therefore a negative reputation value means bad behavior. A threshold would define when a peer is assumed to be malicious and after this it would not be able to participate in any future votes.
-In this case we can assume two different types of events which should trigger the decrement of a node's reputation by one unit:
+Each peer locally keeps a table associating peers to their reputation. The value of this reputation would be initialized to zero and would be decreased every time a peer is suspected. Therefore a negative reputation value means bad behavior. A threshold defines when a peer is assumed to be malicious and after this it is added to the blacklist, not being able to participate in any future votes. \
+For each round peers have an opinion of the other peers. This means that for a certain poll, peers can either trust or suspect other peers. For every pool each node has an opinion table where they can assign either **+1** or **-1** to other peers (where **+1** means to _trust_ and **-1** means to _suspect_). This table is then shared with the other peers so everyone can compute the network's overall opinions. This is added to the value of the local reputation table which results in the updated reputation.
 
-When a message does not pass the integrity check (signature is not valid) the sending node of this message will be suspected
-When a message is not properly authenticated (not signed or signature does not match alleged sender) the sending node of this message will be suspected
-When two different and contradicting votes are received for the same question and are authenticated by the same node, this node will be suspected
+There are two different events which should trigger the suspicion of a peer:
+- When a node receives a message that is not properly signed
+- When a node receives a message and its signature is invalid, i.e. the original signed message was tampered with
 
-After the deliberation phase is over and the nodes receive the keys to open each vote, before displaying the results to the user, the reputation system comes into play. In this phase all peers share their reputation tables with the others in order for every node to understand which nodes did not behave correctly. When a node receives a table its values should be added to the local table in order for every node to have the same table locally. Nodes which reputation goes below the threshold will be added to a black list and will not participate in subsequent polls. Their votes for the current question will also not be taken into account. The threshold should be calibrated so that when most users believe a peer is malicious, its activity is stopped as soon as possible.
+(- When two different and contradicting votes are received for the same question and are authenticated by the same node, the authenticating ndoe is suspected) 
 
-This is the basic algorithm:
-Every peer initializes its reputation table to 0
-During a vote, when a message is received, check for inconsistencies:
-Inconsistency detected (any of the 3 possibilities above) - decrement the reputation of the guilty peer
-Nothing wrong - reputation table unchanged
-Every peer gossips its reputation table
-Add own reputation table to all that were received
-Identify nodes below the threshold and blacklist them
+In both cases it is the forwarder of such a message that is suspected as it is trying to forward an invalid vote to the network. An honest peer drops these messages so as to not be suspected by others and there is also no advantage in forwarding them.
+
+The reputation system comes into play when after updating the local reputation table and detecting that a peer's reputation is below the threshold. When this happens the peer in question is added to the blacklist. From this moment, this peer will not be able to participate in any future polls. A peer drops all traffic forwarded by a blacklisted node making its attempts to participate in any vote useless.
+
+Reputations are at maximum 0. They cannot go above this value in order to prevent attackers from behaving well during a certain period of time to build up their reputation only to take advantage of this situation later on and behave maliciously.
+
+(After the deliberation phase is over and the nodes receive the keys to open each vote, before displaying the results to the user, the reputation system comes into play. In this phase all peers share their reputation tables with the others in order for every node to understand which nodes did not behave correctly. When a node receives a table its values should be added to the local table in order for every node to have the same table locally. Nodes whose reputation goes below the threshold will be added to a blacklist and will not participate in subsequent polls. Their votes for the current question will also not be taken into account. The threshold should be calibrated so that when most users believe a peer is malicious, its activity is stopped as soon as possible.)
+
+This is the algorithm:
+- Every peer initializes its reputation table to 0
+- During a vote, _trust_ or _suspect_ peers
+- Every peer gossips its opinion on other peers
+- Compute network's opinion with the received opinions
+- Update local reputation table with network's opinion
+- Identify nodes below the threshold and blacklist them
 
 
 ## Evaluation Plan

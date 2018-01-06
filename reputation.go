@@ -27,6 +27,7 @@ func (opinions RepOpinions) hasInvalidOpinion() bool {
 	return false
 }
 
+// TODO remove the map because we won't be able to associate each opinion with its peer anymore
 // to store a peer's opinions and associate it with the peer
 type OpinionsMap map[string]RepOpinions
 
@@ -76,7 +77,6 @@ func (repTable ReputationTable) AddReputations(allOpinions OpinionsMap) {
 
 		// If a peer has an invalid opinion of another peer
 		// none of its opinions will be taken into account
-		// TODO should this peer be blacklisted?? if so, would all honest peers do this?
 		if peerOpinions.hasInvalidOpinion() {
 			continue
 		}
