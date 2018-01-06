@@ -5,20 +5,19 @@ import (
 	"crypto/sha256"
 	"strconv"
 	"fmt"
-	"math/rand"
-	"time"
+	"crypto/rand"
 )
 
 // msg contains hash of message to get signed
 type LinkableRingSignature struct {
 	msg []byte
 	c0  []byte
-	s   []big.Int
+	s   []*big.Int
 	tag [2]*big.Int
 }
 
 func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (LinkableRingSignature, [][]byte) {
-	if L[pos][0].Cmp(gossiper.KeyPair.X) != 0 && L[pos][1].Cmp(gossiper.KeyPair.Y) != 0{
+	if pos > len(L) || L[pos][0].Cmp(gossiper.KeyPair.X) != 0 && L[pos][1].Cmp(gossiper.KeyPair.Y) != 0{
 		fmt.Println("Linkable ring signature generation failed: public key not in L")
 		return LinkableRingSignature{}, [][]byte{}
 	}
@@ -35,22 +34,25 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (Linkab
 
 	tag[0], tag[1] = curve.ScalarMult(Hx, Hy, gossiper.KeyPair.D.Bytes())
 	
-	r := rand.New(rand.NewSource(time.Now().Unix()))
-	u := new(big.Int)
-	u.Rand(r, p)
+	u, err := rand.Int(rand.Reader, p)
+	if err != nil {
+		fmt.Println("rand.Int failed:", err)
+	}
 
 	commonPart := pubKeys
 	commonPart = append(append(commonPart, tag[0].Bytes()...), tag[1].Bytes()...)
 	commonPart = append(commonPart, msg...)
 
 	uGx, uGy := curve.ScalarBaseMult(u.Bytes())
+	fmt.Printf("uGx %d\nuGy %d\n",uGx,uGy)
 	uHx, uHy := curve.ScalarMult(Hx, Hy, u.Bytes())
+	fmt.Printf("uHx %d\nuHy %d\n",uHx,uHy)
 
 	hashInput := append(append(commonPart, uGx.Bytes()...), uGy.Bytes()...)
 	hashInput = append(append(hashInput, uHx.Bytes()...), uHy.Bytes()...)
 
 	hash := sha256.New()
-	_, err := hash.Write(hashInput)
+	_, err = hash.Write(hashInput)
 	if err != nil {
 		fmt.Println("hash.Write failed:", err)
 	}
@@ -66,23 +68,26 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (Linkab
 	}
 
 
-	s := make([]big.Int, len(L))
+	s := make([]*big.Int, len(L))
 
 	// c[i+1] = hash(L, Tag, msg, s[i]*G + s[i]*Yi, s[i]*H + c[i]*Tag)
 	// c[pos+2] to c[len(L)-1], c[0]
 	for i := pos+1; i < len(L); i++  {
 		fmt.Printf("Round %d\n",i)
-		s[i].Rand(r, p)
+		s[i], err = rand.Int(rand.Reader, p)
+		if err != nil {
+			fmt.Println("rand.Int failed:", err)
+		}
 
 		siGx, siGy := curve.ScalarBaseMult(s[i].Bytes())
 		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
-		fmt.Printf("ciYix %d\n ciYiy %d\n",ciYix,ciYiy)
 		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
+		fmt.Printf("siGciYix %d\nsiGciYiy %d\n",siGciYix,siGciYiy)
 
 		siHx, siHy := curve.ScalarMult(Hx, Hy, s[i].Bytes())
 		ciTagx, ciTagy := curve.ScalarMult(tag[0], tag[1], c[i])
-		fmt.Printf("ciTagx %d\n ciTagy %d\n",ciTagx,ciTagy)
 		siHciTagx, siHciTagy := curve.Add(siHx, siHy, ciTagx, ciTagy)
+		fmt.Printf("siHciTagx %d\nsiHciTagy %d\n",siHciTagx,siHciTagy)
 
 		hashInput := append(append(commonPart, siGciYix.Bytes()...), siGciYiy.Bytes()...)
 		hashInput = append(append(hashInput, siHciTagx.Bytes()...), siHciTagy.Bytes()...)
@@ -107,17 +112,20 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (Linkab
 	// c[1] to c[pos]
 	for i := 0; i < pos ; i++ {
 		fmt.Printf("Round %d\n",i)
-		s[i].Rand(r, p)
+		s[i], err = rand.Int(rand.Reader, p)
+		if err != nil {
+			fmt.Println("rand.Int failed:", err)
+		}
 
 		siGx, siGy := curve.ScalarBaseMult(s[i].Bytes())
 		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
-		fmt.Printf("ciYix %d\n ciYiy %d\n",ciYix,ciYiy)
 		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
+		fmt.Printf("siGciYix %d\nsiGciYiy %d\n",siGciYix,siGciYiy)
 
 		siHx, siHy := curve.ScalarMult(Hx, Hy, s[i].Bytes())
 		ciTagx, ciTagy := curve.ScalarMult(tag[0], tag[1], c[i])
-		fmt.Printf("ciTagx %d\n ciTagy %d\n",ciTagx,ciTagy)
 		siHciTagx, siHciTagy := curve.Add(siHx, siHy, ciTagx, ciTagy)
+		fmt.Printf("siHciTagx %d\nsiHciTagy %d\n",siHciTagx,siHciTagy)
 
 		hashInput := append(append(commonPart, siGciYix.Bytes()...), siGciYiy.Bytes()...)
 		hashInput = append(append(hashInput, siHciTagx.Bytes()...), siHciTagy.Bytes()...)
@@ -136,9 +144,17 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (Linkab
 	// s_pos = u - privKey * c[pos] mod p
 	cPos := new(big.Int).SetBytes(c[pos])
 	privKeyCpos := new(big.Int).Mul(gossiper.KeyPair.D, cPos)
+	privKeyCpos = new(big.Int).Mod(privKeyCpos, p)
 
-	s[pos].Sub(u,privKeyCpos)
-	s[pos].Mod(&s[pos],p)
+	s[pos] = new(big.Int).Sub(u,privKeyCpos)
+	s[pos] = new(big.Int).Add(s[pos], p)
+	fmt.Printf("u-privKeyCPos: %d \n",s[pos])
+	s[pos]= new(big.Int).Mod(s[pos],p) // PROBLEM!!
+
+	for index, s := range s {
+		fmt.Printf("s[%d]: %d \n", index, s)
+	}
+	fmt.Printf("u: %d \nx: %d \nc[pos]: %d \np: %d \nprivKeyCpos: %d \n", u, gossiper.KeyPair.D, cPos, p, privKeyCpos)
 
 	return LinkableRingSignature{msg, c[0], s, tag}, c
 }
@@ -167,13 +183,13 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
 
 		siGx, siGy := curve.ScalarBaseMult(sig.s[i].Bytes())
 		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
-		fmt.Printf("ciYix %d\n ciYiy %d\n",ciYix,ciYiy)
 		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
+		fmt.Printf("siGciYix %d\nsiGciYiy %d\n",siGciYix,siGciYiy)
 
 		siHx, siHy := curve.ScalarMult(Hx, Hy, sig.s[i].Bytes())
 		ciTagx, ciTagy := curve.ScalarMult(sig.tag[0], sig.tag[1], c[i])
-		fmt.Printf("ciTagx %d\n ciTagy %d\n",ciTagx,ciTagy)
 		siHciTagx, siHciTagy := curve.Add(siHx, siHy, ciTagx, ciTagy)
+		fmt.Printf("siHciTagx %d\nsiHciTagy %d\n",siHciTagx,siHciTagy)
 
 		hashInput := append(append(commonPart, siGciYix.Bytes()...), siGciYiy.Bytes()...)
 		hashInput = append(append(hashInput, siHciTagx.Bytes()...), siHciTagy.Bytes()...)

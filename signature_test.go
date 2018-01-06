@@ -86,7 +86,7 @@ func TestSignatureGenerationDeterministic(t *testing.T){
 	}
 
 	for i:=0; i<len(lrs1.s);i++ {
-		if lrs1.s[i].Cmp(&lrs2.s[i]) != 0 {
+		if lrs1.s[i].Cmp(lrs2.s[i]) != 0 {
 			t.Errorf("s[%d] not the same, 1: %x, 2: %x", i, lrs1.s[i], lrs2.s[i])
 		}
 	}
@@ -126,7 +126,7 @@ func TestVerification(t *testing.T){
 	s3,_:=	new(big.Int).SetString("643953056499445665129656823597160132992283685122302849315473277369323302465", 10)
 	s4,_:=	new(big.Int).SetString("48617406641589855092720916430837353538204521464820374827581373047564655375368",10)
 	s5,_:=	new(big.Int).SetString("26199623993143287956981664076527008920993357796979643621803367839123795711902",10)
-	s := []big.Int{*s1,*s2,*s3,*s4,*s5}
+	s := []*big.Int{s1,s2,s3,s4,s5}
 
 	lrs := LinkableRingSignature{msg, c0.Bytes(), s, Tag}
 
@@ -191,7 +191,7 @@ func TestValidSignature(t *testing.T)  {
 	fmt.Printf("c[%d] %x\n", i+1,nextC)
 
 	if string(sig.c0) != string(nextC){
-		t.Errorf("Generated Signature invalide. Expected:\n%xGot:\n%x", sig.c0,nextC)
+		t.Errorf("Generated Signature invalide. \nExpected: %x\nGot: %x", sig.c0,nextC)
 	}
 }
 
@@ -200,7 +200,7 @@ func TestVerifyGeneratedSignature(t *testing.T)  {
 
 	msg := []byte("Test input")
 
-	pos := 0
+	pos := 3
 	numPubKey := 4
 	L := initTwoDimArray(2, numPubKey)
 	for i:=0; i<numPubKey; i++ {
