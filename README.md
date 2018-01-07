@@ -41,8 +41,14 @@ For the authentication scheme, we will use a kind of web of trust, as used in GP
 ## Background
 We will use the same infrastructure of message distribution as the one used in Peerster, so the course’s gossip algorithm. 
 
-### Linkable Ring Signature 
 ~~For the encryption of voting, we will use a symmetric crypto, AES-256, because it is widely used and tested and easily implemented via the “crypto/aes” go module. For the public/private key setup, we will use the “crypto/ecdsa” go module, we do consider these two encryption scheme to be trusted, even if it was defined by FIPS, we won’t here try to get away from government validated encryption.~~
+
+### Linkable Ring Signature 
+
+Linkable ring signatures are a type of group signature that allow any
+member of a group to produce a signature on behalf of the group without
+revealing his identity. The property of linkability provides the signature
+verifier with a simple method of detecting whether a signature has been used more than once. The only requirement for this scheme is an existing public key infrastructure.
 
 ## Design and Architecture
 
@@ -86,18 +92,18 @@ The properties of receipt-freeness and coercioin-resistance, which are also comm
 
 ### Authentication scheme:
 ~~To ensure a strong authentication, we will use a kind of distributed CA, it will use a public/private key system. There is a root key, created by the started of the network, or when someone else want to create a different, not related voting group, with full trust. The nodes participating in this voting group can only do so by having it’s own public key crossed signed by the root node, or by someone which was itself signed by the root node, and so on. The public key are physically signed during a small key signing party as having a key distribution via a non-authenticated network, such a the gossiper protocol we use, is not safe. Key signing party can off course be distributed by using another trusted protocol for communication but outside of this project. This is similar to the web of trust of GPG but with only the “signed at some point by the root node” and not the quality of trusting.
-The transmission itself will use the gossiper network. We consider that key signing is trust operation where a node is validated to be fit to the network. If we want stronger garanties, we can require that n person sign the key before accepting it. By having the public key distributed in the gossiper network, we ensure that even if the root node or any element of the link to a peer is down, there is no issue with it, as the trust is forwarded. For an example scenario
+The transmission itself will use the gossiper network. We consider that key signing is trust operation where a node is validated to be fit to the network. If we want stronger garanties, we can require that n person sign the key before accepting it. By having the public key distributed in the gossiper network, we ensure that even if the root node or any element of the link to a peer is down, there is no issue with it, as the trust is forwarded. For an example scenario~~
 
-A want to create a new vote group, to do so, it generate a new key public private key pair and sign it’s own public key
+~~A want to create a new vote group, to do so, it generate a new key public private key pair and sign it’s own public key
 To have some utility to the fact of voting, A ask B to come and connect, and A sign B’s public key
 B knows C and want also to vote with him, so B sign C’s public key
 A is bored with it, so just leave the network. There is no issue as B is trusted by the root key and C is trusted by B
 E want to join but is a long term ennemi from A, so it will try to interfere with the network by sending its own vote
-B and C receive E’s vote, but drop it as the signature is not trusted
+B and C receive E’s vote, but drop it as the signature is not trusted~~
 
-To ensure that there is no replaying of message, we will use a monotone vote id per peer, which is the count of the number of vote since the beginning for this peer. As the signing operation is done on the whole message, a replay will be for an older vote thus dropped.
+~~To ensure that there is no replaying of message, we will use a monotone vote id per peer, which is the count of the number of vote since the beginning for this peer. As the signing operation is done on the whole message, a replay will be for an older vote thus dropped.~~
 
-As every message is authenticated by some mean, if it doesn’t come from the root node or related, we just drop it. This way, we have a sybil attack free network. ~~
+~~As every message is authenticated by some mean, if it doesn’t come from the root node or related, we just drop it. This way, we have a sybil attack free network. ~~
 
 Identifying malicious peers: When a peer receives a message, it should be able to verify the message's integrity and authenticity relying on our authenticity scheme to check a digital signature. When a node identifies that a received message was tampered with, the node can suspect the sending node of being the attacker. When this situation is identified the message should be dropped so that other nodes do not suspect a non-malicious node because it forwarded an invalid message. Also we can detect malicious behavior when we receive two different votes authenticated by the same node. Relying on the authentication scheme can allow us to easily identify this node as malicious because no one else but itself could provide this authentication.
 
