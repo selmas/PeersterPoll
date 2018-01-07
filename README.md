@@ -4,39 +4,13 @@
 
 We want to create a  simple voting scheme for the nodes in the network where peers don't influence each other’s vote by publicly displaying their own vote before the result. A user can ask a question, then everyone that wants to, sends their “sealed” vote to each
 other. After dispatching the votes, everyone can locally open the received messages and find out the result. By having this two phases for voting, we ensure that nobody can have even a partial result of the decision of the network.
-To ensure that only the wanted peers are capable of voting, we add a private/public key system for authentication with a simplified GPG’s web of trust. The root key is created by the founder of the vote group and sign other public key of wanted identity, which in turn, can sign others.
+~~To ensure that only the wanted peers are capable of voting, we add a private/public key system for authentication with a simplified GPG’s web of trust. The root key is created by the founder of the vote group and sign other public key of wanted identity, which in turn, can sign others.~~
 
 ## Goals and Functionalities
 
-The main functionality is to allow users to propose a question to everyone and have a poll, in which the users cannot influence by the votes of everyone else. However, they should still have the certainty that no user changed their vote prior to everyone being able to see the content of their vote without everyone noticing it. This vote can be seen as a question with several different possible answers which the proposer defines as well. Then the question and the different possible, predefined answers are spread across the network (basic Peerster functionality) and everyone in the Peerster network should get it. Then the users should be able to vote through the GUI selecting one of the answers. Once the user selects this answer the user's Peerster node will gossip this vote. However this vote will be encrypted with a key known only by the sending node. After every node received every vote from the active nodes, each node gossips their key making it possible for every node to locally calculate the vote's results. The goal is not to vote anonymously but just making sure voters don't know anyone else's decision before making their own while still archiving the property that once a vote is casted, voters cannot change their mind.
+The main functionality is to allow users to propose a question to everyone and have a poll, in which the users cannot be influenced by the votes of everyone else. However, they should still have the certainty that no user changed their vote after seeing  to everyone being able to see the content of their vote without everyone noticing it. This vote can be seen as a question with several different possible answers which the proposer defines as well. Then the question and the different possible, predefined answers are spread across the network (basic Peerster functionality) and everyone in the Peerster network should get it. Then the users should be able to vote through the GUI selecting one of the answers. Once the user selects this answer the user's Peerster node will register for the vote by sending his temporary public key, signed by his master public key, to the peer that proposed the poll (registery Node).  Once the poll is closed, the registery will no longer accept new registrations for the poll and instead start to gossip the list of all the participants. Using this list the participating peers can now commit to their vote, sign this commitment using a linkable ring signature and gossip it in the network. Once a peer has received all the commits (number commit equals number of participants in poll) or a timeout has occured (to be robust against node failure of a ~~gossip this vote. However this vote will be encrypted with a key known only by the sending node. After every node received every vote from the active nodes, each node gossips their key making it possible for every node to locally calculate the vote's results.~~ ~~ The goal is not to vote anonymously but just making sure voters don't know anyone else's decision before making their own while still archiving the property that once a vote is casted, voters cannot change their mind.
 
-
-Voting Protocol
-    In the following we will shortly outline the voting procedure step-by-step. We will use the Peerster network as an underlying structure on which we will build the voting functionality.
-
-### Round 1:
-1. A peer starts a poll by setting up the QUESTION, VOTE_OPTIONS and TIME_TO_VOTE (which is defined by stating the starting time and duration of the poll), sign the poll and gossip it to all known peers
-2. Upon receipt of a poll that I have not seen before (check by storing the vote ID = Key{originPeer, seqNr}), check the integrity of the poll by checking the signature and, if correct, forward it to all known peers except the one from whom it was received
-3. Every peer can cast a vote by choosing one of the proposed options, encrypting it, include the vote ID, signing it and forwarding it to all known Peers
-4. Upon receipt of a vote that I have not seen before (check by storing Key{votingPeer, vote ID}, Remark: this mapping from vote to voter is not a problem as the goal is not anonymity but simply to not influence other votes with your own), check the integrity of the vote by checking the signature and, if correct, store it locally before forwarding it to all known peers except the one from whom it was received
-
-### Round 2:
-Once the TIME_TO_VOTE has passed (Remark: we assume that clock are synchronized already, we can add a central time authority if needed but that doesn’t change much)
-1. Upon receipt of a vote,
-    - if received directly from voter, discard it
-    - if seen before, gossip to reach consensus
-    - else, check the integrity of the vote by checking the signature, if correct, store it locally, gossip to reach consensus
-
-### Round 3:
-Once consensus on casted votes is reached To the TAs: We struggled with deciding which algorithm would be most suited for our application.
-
-1. Sign the symmetric key, that was used to encrypt the vote for this poll and the corresponding vote ID and gossip it
-2. Upon receipt of a key that I have not seen before, check the integrity of the vote by checking the signature and, if correct, store it locally before forwarding it to all known peers except the one from whom it was received (Remark: here we assume that our gossiper network, as we created it in the course, has the property of eventual consistency)
-
-### Round 4:
-Once peer has all the symmetric keys or  timed out (to achieve robustness)
-1. Use the keys to locally decrypt all the votes and locally compute the outcome of the poll
-
+**MOVE TO REPUTATION SYSTEM AND MODIFY**
 In the basic set-up of the voting scheme we want to archive the following security properties for a scenario in which we have an adversary controlling one or multiple peers in the network (passive adversaries) that follows the protocol exactly but tries to learn as much as possible:
 
 - **Privacy:** The adversary is not able to learn any information about the inputs and outputs of other peers except of what he would learn from the inputs and outputs of his corrupted peers anyway
@@ -63,13 +37,55 @@ We can take a similar approach to the first solution where a peer's reputation i
 
 ### Authentication Scheme:
 For the authentication scheme, we will use a kind of web of trust, as used in GPG. It will be easier, as there is no quality of trust but only if at some point, the key signing was signed by the root key. An issue with it is that trust if recursively given to everybody who was signed by the root key. That’s not an issue per se as every participant should know the importance of signing another key, and as soon as someone get cornered into signing an attacker related key, the attacker can cross sign everything. To mitigate that, we can add revocation, should the problem arise, but having eternal key for a given origin is way easier to support. If there is any issue with a given network, we can anyway easily create a new one, with newly created key. Having a short lived voting group is pretty fit to the physical use of voting, such as during a meeting or a paraoïd group of friend.
-### Background
-We will use the same infrastructure of message distribution as the one used in Peerster, so the course’s gossip algorithm. For the encryption of voting, we will use a symmetric crypto, AES-256, because it is widely used and tested and easily implemented via the “crypto/aes” go module. For the public/private key setup, we will use the “crypto/ecdsa” go module, we do consider these two encryption scheme to be trusted, even if it was defined by FIPS, we won’t here try to get away from government validated encryption.
+
+## Background
+We will use the same infrastructure of message distribution as the one used in Peerster, so the course’s gossip algorithm. 
+
+### Linkable Ring Signature 
+~~For the encryption of voting, we will use a symmetric crypto, AES-256, because it is widely used and tested and easily implemented via the “crypto/aes” go module. For the public/private key setup, we will use the “crypto/ecdsa” go module, we do consider these two encryption scheme to be trusted, even if it was defined by FIPS, we won’t here try to get away from government validated encryption.~~
 
 ## Design and Architecture
 
+### Voting protocol:
+
+In the following we will shortly outline the voting protocol step-by-step. We will use the Peerster network as an underlying structure on which we will build the voting functionality.
+
+**MODIFY**
+### Round 1:
+1. A peer starts a poll by setting up the QUESTION, VOTE_OPTIONS and TIME_TO_VOTE (which is defined by stating the starting time and duration of the poll), sign the poll and gossip it to all known peers
+2. Upon receipt of a poll that I have not seen before (check by storing the vote ID = Key{originPeer, seqNr}), check the integrity of the poll by checking the signature and, if correct, forward it to all known peers except the one from whom it was received
+3. Every peer can cast a vote by choosing one of the proposed options, encrypting it, include the vote ID, signing it and forwarding it to all known Peers
+4. Upon receipt of a vote that I have not seen before (check by storing Key{votingPeer, vote ID}, Remark: this mapping from vote to voter is not a problem as the goal is not anonymity but simply to not influence other votes with your own), check the integrity of the vote by checking the signature and, if correct, store it locally before forwarding it to all known peers except the one from whom it was received
+
+### Round 2:
+Once the TIME_TO_VOTE has passed (Remark: we assume that clock are synchronized already, we can add a central time authority if needed but that doesn’t change much)
+1. Upon receipt of a vote,
+    - if received directly from voter, discard it
+    - if seen before, gossip to reach consensus
+    - else, check the integrity of the vote by checking the signature, if correct, store it locally, gossip to reach consensus
+
+### Round 3:
+Once consensus on casted votes is reached To the TAs: We struggled with deciding which algorithm would be most suited for our application.
+
+1. Sign the symmetric key, that was used to encrypt the vote for this poll and the corresponding vote ID and gossip it
+2. Upon receipt of a key that I have not seen before, check the integrity of the vote by checking the signature and, if correct, store it locally before forwarding it to all known peers except the one from whom it was received (Remark: here we assume that our gossiper network, as we created it in the course, has the property of eventual consistency)
+
+### Round 4:
+Once peer has all the symmetric keys or  timed out (to achieve robustness)
+1. Use the keys to locally decrypt all the votes and locally compute the outcome of the poll
+
+
+Our voting protocol has the following properties:
+
+- **Eligibility:** only registered peers can vote, and only once. This is guaranteed by the linkable ring signature. Peers, which are not registered, cannot generate a valide signature and peers, which vote more than once, will be detected because different votes will have the same signature tag.
+- **Fairness:** no early results can be obtained which could influce the remaining votes. This is guaranteed by the committment scheme. Only after every peer has committed to his vote (or a timeout occures), the votes will be opened so that every peer in the network can see the vote.
+- **Vote-privacy:** it is not revealed to anyone, how a particular peer voted.This is guaranteed by the linkable ring signature. The signer stays anonymous with respect to the group of possible signers (list of participants).
+- **Universal-verifiability:** any peer can locally compute the outcome of the poll, verify that only registered peers voted and that every participant casted at most one vote and 
+
+The properties of receipt-freeness and coercioin-resistance, which are also commonly desired in the context of voting protocols, are not archieved in our protocol. The voter signes the open message of his vote with a linkable ring signature. By disclosing the voters private key which was used for this vote, anyone can compute his tag and find out which vote was signed by him. The voter can therefore prove that he voted in a certain way.
+
 ### Authentication scheme:
-To ensure a strong authentication, we will use a kind of distributed CA, it will use a public/private key system. There is a root key, created by the started of the network, or when someone else want to create a different, not related voting group, with full trust. The nodes participating in this voting group can only do so by having it’s own public key crossed signed by the root node, or by someone which was itself signed by the root node, and so on. The public key are physically signed during a small key signing party as having a key distribution via a non-authenticated network, such a the gossiper protocol we use, is not safe. Key signing party can off course be distributed by using another trusted protocol for communication but outside of this project. This is similar to the web of trust of GPG but with only the “signed at some point by the root node” and not the quality of trusting.
+~~To ensure a strong authentication, we will use a kind of distributed CA, it will use a public/private key system. There is a root key, created by the started of the network, or when someone else want to create a different, not related voting group, with full trust. The nodes participating in this voting group can only do so by having it’s own public key crossed signed by the root node, or by someone which was itself signed by the root node, and so on. The public key are physically signed during a small key signing party as having a key distribution via a non-authenticated network, such a the gossiper protocol we use, is not safe. Key signing party can off course be distributed by using another trusted protocol for communication but outside of this project. This is similar to the web of trust of GPG but with only the “signed at some point by the root node” and not the quality of trusting.
 The transmission itself will use the gossiper network. We consider that key signing is trust operation where a node is validated to be fit to the network. If we want stronger garanties, we can require that n person sign the key before accepting it. By having the public key distributed in the gossiper network, we ensure that even if the root node or any element of the link to a peer is down, there is no issue with it, as the trust is forwarded. For an example scenario
 
 A want to create a new vote group, to do so, it generate a new key public private key pair and sign it’s own public key
@@ -81,7 +97,7 @@ B and C receive E’s vote, but drop it as the signature is not trusted
 
 To ensure that there is no replaying of message, we will use a monotone vote id per peer, which is the count of the number of vote since the beginning for this peer. As the signing operation is done on the whole message, a replay will be for an older vote thus dropped.
 
-As every message is authenticated by some mean, if it doesn’t come from the root node or related, we just drop it. This way, we have a sybil attack free network.
+As every message is authenticated by some mean, if it doesn’t come from the root node or related, we just drop it. This way, we have a sybil attack free network. ~~
 
 Identifying malicious peers: When a peer receives a message, it should be able to verify the message's integrity and authenticity relying on our authenticity scheme to check a digital signature. When a node identifies that a received message was tampered with, the node can suspect the sending node of being the attacker. When this situation is identified the message should be dropped so that other nodes do not suspect a non-malicious node because it forwarded an invalid message. Also we can detect malicious behavior when we receive two different votes authenticated by the same node. Relying on the authentication scheme can allow us to easily identify this node as malicious because no one else but itself could provide this authentication.
 
