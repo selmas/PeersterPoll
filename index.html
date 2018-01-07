@@ -1,134 +1,127 @@
-<html>
 <head>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+
+    <!-- Latest compiled JavaScript -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
     <script type="text/javascript">
-        function handle_update_map_origin_msgs(selector) {
-            return function (data, _, _) {
-                str = "";
-                Object.entries(data).forEach(function (kv, _, _) {
-                    origin = kv[0]
-                    msgs = kv[1]
-                    msgs.forEach(function (msg, _, _) {
-                        str += origin + ": " + msg + "\n";
-                    })
-                })
 
-                $(selector).text(str)
-            }
-        }
+        var currentQuestion = "";
+        var myAnswer = "";
+        var poll_results_interval;
 
-        function handle_update_list(selector) {
+
+        function handle_update_list_options(question, options) {
             return function (data) {
-                str = ""
-                data.forEach(function (node, _, _) {
-                    str += node + "\n"
+                if (data[0] === currentQuestion) {
+                    return
+                }
+                currentQuestion = data[0];
+
+                document.getElementById("resultDiv").style.display = "none";
+                document.getElementById("answerPoll").style.display = "block";
+                $(options).empty();
+
+                data.forEach(function (item, index) {
+                    if (index === 0) {
+                        $(question).text(item)
+                    } else {
+                        $(options).append('<option value="' + item + '">' + item + '</option>');
+                    }
                 })
-                $(selector).text(str)
             }
         }
 
-        function update_messages() {
-            $.ajax("/message", {
+        function update_poll_options() {
+            $.ajax("/poll", {
                 dataType: "json",
-                success: handle_update_map_origin_msgs("#messages"),
+                success: handle_update_list_options("#asked","#answer")
             })
         }
 
-        function update_nodes() {
-            $.ajax("/node", {
+
+        function handle_poll_results() {
+            return function (data) {
+                if (myAnswer === "") {
+                    return
+                }
+
+                var str = '<table class="table table-striped">';
+                Object.entries(data).forEach(function (mapEntry) {
+                    var option = mapEntry[0];
+                    var votes = mapEntry[1];
+                    str += "<tr><th>" + option + "</th><th> got </th><th>" + votes + "</th><th> votes </th></tr>";
+                });
+                str += "</table>";
+
+                $("#results").html(str);
+                clearInterval(poll_results_interval)
+            }
+        }
+
+        function update_poll_results() {
+            $.ajax("/vote", {
                 dataType: "json",
-                success: handle_update_list("#nodes"),
+                success: handle_poll_results()
             })
         }
 
-        function update_id() {
-            $.ajax("/id", {
-                success: function (data, _, _) {
-                    $("#id").val(data)
-                },
-            })
+        function start_poll() {
+            $.post("/poll", $("#question").val() + "\n" + $("#options").val(), update_poll_options)
         }
 
-        function update_private_messages() {
-            $.ajax("/private_messages", {
-                dataType: "json",
-                success: handle_update_map_origin_msgs("#private_messages"),
-            })
-        }
-
-        function update_routes() {
-            $.ajax("/routes", {
-                dataType: "json",
-                success: (data) = > {
-                $("#routes").html(
-                    data.map((node) = > {
-                        return $("<option>", {
-                            value: node,
-                            text: node,
-                        })
-                    })
-        )
-        }
-        })
-        }
-
-        function send_message() {
-            $.post("/message", $("#message").val(), update_messages)
-        };
-
-        function add_node() {
-            $.post("/node", $("#node").val(), update_nodes)
-        };
-
-        function change_id() {
-            $.post("/id", $("#id").val(), update_id)
-        };
-
-        function send_private_message() {
-            dest = $("#routes").val()
-            text = prompt('message to ' + dest)
-            if (text == null)
+        function send_poll_answer() {
+            if (currentQuestion === "") {
                 return
+            }
+            myAnswer = $("answer").val();
+            $.post("/vote", $("#answer").val());
+            document.getElementById("resultDiv").style.display = "block";
+            document.getElementById("answerPoll").style.display = "none";
 
-            $.post("/private_message", JSON.stringify({
-                'dest': dest,
-                'text': text,
-            }), update_private_messages)
-        };
+            $("#results").html("Waiting for the results...");
 
-        update_id()
+            poll_results_interval = setInterval(update_poll_results, 2000)
+        }
 
-        update_messages()
-        update_nodes()
-        update_private_messages()
-        update_routes()
 
-        setInterval(update_messages, 1000)
-        setInterval(update_nodes, 1000)
-        setInterval(update_private_messages, 1000)
-        setInterval(update_routes, 1000)
+        setInterval(update_poll_options, 1000);
+
     </script>
 </head>
 
-<h2>Chat box</h2>
-<textarea id="messages" disabled></textarea>
-<p>
-    <input id="message"/>
-    <button onclick="send_message()">send message</button>
+<body>
+<div class="container" id="2288">
+<h1>Peerster PollParty</h1>
 
-<h2>Node box</h2>
-<textarea id="nodes" disabled></textarea>
+<h2>Start Poll</h2>
+Question: <br> <input id="question">
 <p>
-    <input id="node"/>
-    <button onclick="add_node()">add node</button>
-
-<h2>ID box</h2>
-<input id="id"/>
-<button onclick="change_id()">change id</button>
-
-<h2>Private messages box</h2>
-<textarea id="private_messages" disabled></textarea>
+Options (one per line): <br> <textarea id="options"></textarea>
 <p>
-    <select id="routes"></select>
-    <button onclick="send_private_message()">send private message</button>
-</html>
+<button class="btn btn-primary" onclick="start_poll()">Ask!</button>
+
+<br><br>
+<h2>Ongoing Poll</h2>
+<div id="answerPoll">
+    Question: <br>
+    <textarea id="asked" disabled></textarea>
+    <p>
+    Choose your answer:
+    <select id="answer">
+        <!-- <option value="opt1"> option 1 </option>
+        <option value="opt2"> option 2 </option> -->
+    </select>
+    <button class="btn btn-primary" onclick="send_poll_answer()">Vote!</button>
+</div>
+<div id="resultDiv" style="display: none">
+    <h3>Results</h3>
+    <label id="results">
+
+    </label>
+</div>
+</div>
+</body>
