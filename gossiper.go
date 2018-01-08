@@ -1,9 +1,10 @@
 package pollparty
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
+	secrand "crypto/rand" // alias needed as we import two libraries with name "rand"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -15,9 +16,20 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	crypto2 "crypto"
 )
+
+type ShareablePollInfo struct {
+	Poll         *Poll
+	Commitments  []Commitment
+	Votes        []Vote
+	Participants [][]*big.Int
+}
+
+type PollInfo struct {
+	ShareablePollInfo
+	Tags     map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
+	Registry *crypto.PublicKey
+}
 
 type Server struct {
 	Addr *net.UDPAddr
@@ -27,15 +39,6 @@ type Server struct {
 type PeerSet struct {
 	sync.RWMutex
 	Set map[string]bool
-}
-
-type PollInfo struct {
-	Poll         *Poll
-	Commitments  []Commitment
-	Tags         map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
-	Votes        []Vote
-	Participants [][]*big.Int
-	Registry     *crypto2.PublicKey
 }
 
 type PollSet struct {
@@ -279,7 +282,7 @@ func NewPollKey(g *Gossiper) PollKey {
 
 	return PollKey{
 		ID:     atomic.AddUint64(&g.LastID, 1),
-		Origin: &g.KeyPair.PublicKey,
+		Origin: g.KeyPair.PublicKey,
 	}
 }
 
@@ -399,7 +402,7 @@ func ecSignature(g *Gossiper, poll PollPacket) (Signature, error) {
 
 	hash := sha256.New()
 	_, err = hash.Write(input)
-	r, s, err := ecdsa.Sign(crypto.Reader, &g.KeyPair, hash.Sum(nil))
+	r, s, err := ecdsa.Sign(secrand.Reader, &g.KeyPair, hash.Sum(nil))
 	if err != nil {
 		log.Printf("error generating elliptic curve signature")
 		return Signature{}, err
@@ -550,7 +553,7 @@ func signatureValid(g *Gossiper, pkg GossipPacket) bool {
 			log.Printf("error generating elliptic curve signature")
 		}
 
-		return pkg.Signature.ellipticCurveSig != nil && ecdsa.Verify(pkg.Poll.ID.Origin, hash.Sum(nil),
+		return pkg.Signature.ellipticCurveSig != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash.Sum(nil),
 			pkg.Signature.ellipticCurveSig.r, pkg.Signature.ellipticCurveSig.s)
 	}
 

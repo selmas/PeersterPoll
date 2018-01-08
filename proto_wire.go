@@ -1,9 +1,36 @@
 package pollparty
 
 import (
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"errors"
+	"math/big"
 )
+
+type PollKeyWire struct {
+	X  []byte
+	Y  []byte
+	ID uint64
+}
+
+func (msg PollKey) ToWire() PollKeyWire {
+	return PollKeyWire{
+		X:  msg.Origin.X.Bytes(),
+		Y:  msg.Origin.Y.Bytes(),
+		ID: msg.ID,
+	}
+}
+
+func (msg PollKeyWire) ToBase() PollKey {
+	return PollKey{
+		Origin: ecdsa.PublicKey{
+			Curve: Curve(),
+			X:     new(big.Int).SetBytes(msg.X),
+			Y:     new(big.Int).SetBytes(msg.Y),
+		},
+		ID: msg.ID,
+	}
+}
 
 func (msg Commitment) ToWire() CommitmentWire {
 	return CommitmentWire{
@@ -74,7 +101,7 @@ func (msg PollPacket) ToWire() PollPacketWire {
 	}
 
 	return PollPacketWire{
-		ID:              msg.ID,
+		ID:              msg.ID.ToWire(),
 		Poll:            msg.Poll,
 		Commitment:      c,
 		PollCommitments: msg.PollCommitments,
@@ -83,7 +110,7 @@ func (msg PollPacket) ToWire() PollPacketWire {
 }
 
 type PollPacketWire struct {
-	ID              PollKey
+	ID              PollKeyWire
 	Poll            *Poll
 	Commitment      *CommitmentWire
 	PollCommitments *PollCommitments
@@ -94,7 +121,7 @@ func (msg PollPacketWire) ToBase() (PollPacket, error) {
 	const head = "GossipPacketWire: "
 
 	ret := PollPacket{
-		ID:              msg.ID,
+		ID:              msg.ID.ToBase(),
 		Poll:            msg.Poll,
 		PollCommitments: msg.PollCommitments,
 	}
@@ -161,7 +188,7 @@ func (pkg PollPacketWire) Check() error {
 
 // nice protobuf, do not support map with any type
 type StatusPacketWire struct {
-	Infos map[string]PollInfo
+	Infos map[string]ShareablePollInfo
 }
 
 func (pkg StatusPacketWire) Check() error {
@@ -180,7 +207,7 @@ func (pkg StatusPacketWire) Check() error {
 }
 
 func (pkg StatusPacket) ToWire() StatusPacketWire {
-	infos := make(map[string]PollInfo)
+	infos := make(map[string]ShareablePollInfo)
 
 	for id, info := range pkg.Infos {
 		infos[id.String()] = info
@@ -199,7 +226,7 @@ func (pkg StatusPacketWire) ToBase() (StatusPacket, error) {
 	}
 
 	ret := StatusPacket{
-		Infos: make(map[PollKey]PollInfo),
+		Infos: make(map[PollKey]ShareablePollInfo),
 	}
 
 	for k, info := range pkg.Infos {
