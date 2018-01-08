@@ -179,7 +179,7 @@ func initTwoDimArray(dx, dy int) [][]*big.Int {
 }
 
 func setupGossiper() *Gossiper{
-	gossiper := NewGossiper("NodeA", NewServer("127.0.0.1:5000"))
+	gossiper, _ := NewGossiper("NodeA", NewServer("127.0.0.1:5000"))
 	defer gossiper.Server.Conn.Close()
 
 	return gossiper
