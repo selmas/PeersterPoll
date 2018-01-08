@@ -16,6 +16,7 @@ import (
 	"math/big"
 	"crypto/sha256"
 
+	crypto2 "crypto"
 )
 
 type Server struct {
@@ -33,6 +34,8 @@ type PollInfo struct {
 	Commitments     []Commitment
 	PollCommitments *PollCommitments
 	Votes           []Vote
+	Participants    [][]*big.Int
+	Registry        *crypto2.PublicKey
 }
 
 type PollSet struct {
@@ -282,7 +285,7 @@ func NewPollKey(g *Gossiper) PollKey {
 
 	return PollKey{
 		ID:     atomic.AddUint64(&g.LastID, 1),
-		Origin: g.Name,
+		Origin: &g.KeyPair.PublicKey,
 	}
 }
 
@@ -358,7 +361,7 @@ func (g *Gossiper) SendPoll(id PollKey, msg Poll, gossiper Gossiper) {
 		ID:   id,
 		Poll: &msg,
 	}
-	sig, err := ecSignPollPacket(pkg, gossiper)
+	sig, err := ecSignature(pkg, gossiper)
 	if err != nil {
 		return
 	}
@@ -386,16 +389,16 @@ func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments, gossiper
 		PollCommitments: &msg,
 	}
 
-	ecsig, err := ecSignPollPacket(pkg, gossiper)
+	sig, err := ecSignature(pkg, gossiper)
 	if err != nil {
 		return
 	}
 
-	g.SendPollPacket(&pkg, &ecsig,nil)
+	g.SendPollPacket(&pkg, &sig,nil)
 }
 
-func ecSignPollPacket(pkg PollPacket, gossiper Gossiper) (Signature, error) {
-	input, err := json.Marshal(pkg)
+func ecSignature(poll PollPacket, gossiper Gossiper) (Signature, error) {
+	input, err := json.Marshal(poll)
 	if err != nil {
 		log.Printf("unable to encode as json")
 		return Signature{}, err
@@ -403,7 +406,7 @@ func ecSignPollPacket(pkg PollPacket, gossiper Gossiper) (Signature, error) {
 
 	hash := sha256.New()
 	_, err = hash.Write(input)
-	r, s, err := ecdsa.Sign(crypto.Reader, &gossiper.KeyPair, hash.Sum(nil)) // TODO use masterkey for signing
+	r, s, err := ecdsa.Sign(crypto.Reader, &gossiper.KeyPair, hash.Sum(nil))
 	if err != nil {
 		log.Printf("error generating elliptic curve signature")
 		return Signature{}, err
@@ -499,6 +502,10 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 
 		if pkg.Poll != nil {
 			poll := *pkg.Poll
+
+			if !signatureValid(pkg, *g){
+				return
+			}
 			poll.Print(fromPeer)
 
 			g.Polls.Store(poll)
@@ -516,6 +523,32 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 		}
 
 	}
+}
+
+func signatureValid(pkg GossipPacket, g Gossiper) bool {
+	poll := pkg.Poll
+
+	if (poll.Commitment != nil || poll.Vote != nil) && !(poll.Commitment != nil && poll.Vote != nil){
+		return pkg.Signature.linkableRingSig != nil && verifySig(*pkg.Signature.linkableRingSig, g.Polls.m[pkg.Poll.ID].Participants)
+	}
+
+	if  (poll.PollCommitments != nil || poll.Poll != nil) && !(poll.PollCommitments != nil && poll.Poll != nil){
+		input, err := json.Marshal(poll)
+		if err != nil {
+			log.Printf("unable to encode as json")
+		}
+
+		hash := sha256.New()
+		_, err = hash.Write(input)
+		if err != nil {
+			log.Printf("error generating elliptic curve signature")
+		}
+
+		return pkg.Signature.ellipticCurveSig != nil && ecdsa.Verify(pkg.Poll.ID.Origin, hash.Sum(nil),
+			pkg.Signature.ellipticCurveSig.r, pkg.Signature.ellipticCurveSig.s)
+	}
+
+	return false
 }
 
 func parseAddr(str string) *net.UDPAddr {

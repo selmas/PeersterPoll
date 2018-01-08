@@ -51,23 +51,12 @@ func TestMapToPointReturnsPointOnCurve(t  *testing.T)  {
 
 // Output slice c in method linkableRingSignature to run this test
 /*func TestValidSignature(t *testing.T)  {
-	gossiper := setupGossiper()
+	gossiper := DummyGossiper()
 	msg := []byte("Test input")
 
+	pos := 2
 	numPubKey := 4
-	L := initTwoDimArray(2, numPubKey)
-	for i:=0; i<numPubKey-1; i++ {
-		keyPair, err := ecdsa.GenerateKey(curve, crypto.Reader) // generates key pair
-		if err != nil {
-			errors.New("Elliptic Curve Generation: " + err.Error())
-		}
-		L[i][0] = keyPair.X
-		L[i][1] = keyPair.Y
-	}
-
-	pos := numPubKey-1
-	L[pos][0] = gossiper.KeyPair.X
-	L[pos][1] = gossiper.KeyPair.Y
+	L := DummyPublicKeyArray(gossiper,pos,numPubKey)
 
 	sig, c := linkableRingSignature(msg, L, *gossiper, pos)
 
@@ -111,28 +100,14 @@ func TestMapToPointReturnsPointOnCurve(t  *testing.T)  {
 }*/
 
 func TestVerifyGeneratedSignature(t *testing.T)  {
-	gossiper := setupGossiper()
+	gossiper := DummyGossiper()
 
 	msg := []byte("Test input")
 
 	numPubKey := 4
-	L := initTwoDimArray(2, numPubKey)
 	for pos := 0; pos < numPubKey; pos++  {
-		for i:=0; i<numPubKey; i++ {
-			if i == pos {
-				L[pos][0] = gossiper.KeyPair.X
-				L[pos][1] = gossiper.KeyPair.Y
-			} else {
-				keyPair, err := ecdsa.GenerateKey(curve, crypto.Reader) // generates key pair
-				if err != nil {
-					errors.New("Elliptic Curve Generation: " + err.Error())
-				}
-				L[i][0] = keyPair.X
-				L[i][1] = keyPair.Y
-			}
-		}
-
-		lrs := linkableRingSignature(msg, L, *gossiper, pos)
+		L := DummyPublicKeyArray(gossiper,pos,numPubKey)
+		lrs := linkableRingSignature(msg, L, &gossiper.KeyPair, pos)
 
 		if !verifySig(lrs, L) {
 			t.Errorf("Unable to verify the generated signature, public key at position %d",pos)
@@ -141,34 +116,22 @@ func TestVerifyGeneratedSignature(t *testing.T)  {
 }
 
 func TestVerifyInvalidSignature(t *testing.T)  {
-	gossiper := setupGossiper()
+	gossiper := DummyGossiper()
 
 	msg := []byte("Test input")
 
 	pos := 3
 	numPubKey := 4
-	L := initTwoDimArray(2, numPubKey)
-	for i:=0; i<numPubKey; i++ {
-		if i == pos {
-			L[pos][0] = gossiper.KeyPair.X
-			L[pos][1] = gossiper.KeyPair.Y
-		} else {
-			keyPair, err := ecdsa.GenerateKey(curve, crypto.Reader) // generates key pair
-			if err != nil {
-				errors.New("Elliptic Curve Generation: " + err.Error())
-			}
-			L[i][0] = keyPair.X
-			L[i][1] = keyPair.Y
-		}
-	}
+	L := DummyPublicKeyArray(gossiper,pos,numPubKey)
 
-	lrs := linkableRingSignature(msg, L, *gossiper, pos)
+	lrs := linkableRingSignature(msg, L, &gossiper.KeyPair, pos)
 	lrs.s[0] = lrs.s[1] // messing with some values
 
 	if verifySig(lrs, L) {
 		t.Errorf("Verified invalid signautre")
 	}
 }
+
 // inspired by https://stackoverflow.com/questions/7703251/slice-of-slices-types
 func initTwoDimArray(dx, dy int) [][]*big.Int {
 	array := make([][]*big.Int, dy)
@@ -178,9 +141,20 @@ func initTwoDimArray(dx, dy int) [][]*big.Int {
 	return array
 }
 
-func setupGossiper() *Gossiper{
-	gossiper, _ := NewGossiper("NodeA", NewServer("127.0.0.1:5000"))
-	defer gossiper.Server.Conn.Close()
-
-	return gossiper
+func DummyPublicKeyArray(g Gossiper, pos int, numPubKey int) [][]*big.Int {
+	L := initTwoDimArray(2, numPubKey)
+	for i:=0; i<numPubKey; i++ {
+		if i == pos {
+			L[pos][0] = g.KeyPair.X
+			L[pos][1] = g.KeyPair.Y
+		} else {
+			keyPair, err := ecdsa.GenerateKey(curve, crypto.Reader) // generates key pair
+			if err != nil {
+				errors.New("Elliptic Curve Generation: " + err.Error())
+			}
+			L[i][0] = keyPair.X
+			L[i][1] = keyPair.Y
+		}
+	}
+	return L
 }

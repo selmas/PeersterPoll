@@ -22,17 +22,20 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 		assert(len(poll.Options) > 0)
 		option := poll.Options[0]
 
-		tmpKeyPair, ok := ecdsa.GenerateKey(curve, rand.Reader) // generates key pair
-		if !ok {
+		tmpKeyPair, err := ecdsa.GenerateKey(curve, rand.Reader) // generates key pair
+		if err != nil {
 			return
 		}
-		g.SendRegister(id, tmpKeyPair.PublicKey)
+		//g.SendRegister(id, tmpKeyPair.PublicKey)
 
 		// TODO return list of participants, type [][]*big.Int
-		participants, ok := <-r.tmpKeys
+		//participants, ok := <-r.tmpKeys
+		var participants [][]*big.Int // remove again!!! just for testing
 		if !ok {
 			return
 		}
+		storeParticipants(g,id,participants)
+
 
 		position, ok := containsKey(participants, tmpKeyPair.PublicKey)
 		if !ok {
@@ -63,6 +66,14 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 		// TODO wait for timeout or to receive all votes
 		// TODO locally compute all votes and display to user -> GUI
 	}
+}
+
+func storeParticipants(g *Gossiper, id PollKey, participants [][]*big.Int) {
+	g.Polls.Lock()
+	pollInfos := g.Polls.m[id]
+	pollInfos.Participants = participants
+	g.Polls.m[id] = pollInfos
+	g.Polls.Unlock()
 }
 
 func containsKey(keyArray [][]*big.Int, publicKey ecdsa.PublicKey) (int, bool) {

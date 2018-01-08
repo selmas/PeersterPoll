@@ -8,17 +8,17 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"crypto/ecdsa"
 	"math/big"
+	"crypto/ecdsa"
 )
 
 type PollKey struct {
-	Origin string
+	Origin *ecdsa.PublicKey
 	ID     uint64
 }
 
 func (msg PollKey) Check() error {
-	if msg.Origin == "" {
+	if msg.Origin.X == nil || msg.Origin.Y == nil {
 		log.Println("empty origin") // TODO bad rep
 	}
 
@@ -28,7 +28,7 @@ func (msg PollKey) Check() error {
 const PollKeySep = "/"
 
 func (msg PollKey) String() string {
-	return msg.Origin + PollKeySep + strconv.FormatUint(msg.ID, 10)
+	return msg.Origin.X.String() + PollKeySep + msg.Origin.Y.String() + PollKeySep + strconv.FormatUint(msg.ID, 10)
 }
 
 func PollKeyFromString(packed string) (PollKey, error) {
@@ -40,9 +40,10 @@ func PollKeyFromString(packed string) (PollKey, error) {
 	if err != nil {
 		return ret, err
 	}
-
+	x, _ := new(big.Int).SetString(splitted[0],10)
+	y, _ :=	new(big.Int).SetString(splitted[1],10)
 	ret = PollKey{
-		Origin: splitted[0],
+		Origin: &ecdsa.PublicKey{Curve: curve, X: x, Y: y},
 		ID:     id,
 	}
 
