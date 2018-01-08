@@ -27,9 +27,9 @@ type PeerSet struct {
 }
 
 type PollInfo struct {
-	Poll            Poll
+	Poll            *Poll
 	Commitments     []Commitment
-	PollCommitments []Commitment
+	PollCommitments *PollCommitments
 	Votes           []Vote
 }
 
@@ -51,6 +51,39 @@ func (s *PollSet) Get(k PollKey) PollInfo {
 	defer s.RUnlock()
 
 	return s.m[k]
+}
+
+func (s *PollSet) Store(pkg PollPacket) {
+	s.Lock()
+	defer s.Unlock()
+
+	info := s.m[pkg.ID]
+
+	if pkg.Poll != nil {
+		poll := *pkg.Poll
+
+		// TODO poll != *info.Poll -> bad rep
+
+		info.Poll = &poll
+	}
+
+	if pkg.Commitment != nil {
+		info.Commitments = append(info.Commitments, *pkg.Commitment)
+	}
+
+	if pkg.PollCommitments != nil {
+		commits := *pkg.PollCommitments
+
+		// TODO commits != *info.PollCommitments -> bad rep
+
+		info.PollCommitments = &commits
+	}
+
+	if pkg.Vote != nil {
+		info.Votes = append(info.Votes, *pkg.Vote)
+	}
+
+	s.m[pkg.ID] = info
 }
 
 type RunningPollReader struct {
@@ -75,6 +108,7 @@ func (s RunningPollWriter) Send(pkg PollPacket) {
 		if poll.IsTooLate() {
 			log.Println("poll came in too late")
 		} else {
+			println(">>", pkg.ID.String())
 			s.Poll <- poll
 		}
 		close(s.Poll)
@@ -233,12 +267,12 @@ func NewPollKey(g *Gossiper) PollKey {
 	defer g.Unlock()
 
 	return PollKey{
-		ID:     uint(atomic.AddUint32(&g.LastID, 1)),
+		ID:     atomic.AddUint32(&g.LastID, 1),
 		Origin: g.Name,
 	}
 }
 
-type Dispatcher func(*net.UDPAddr, *GossipPacket)
+type Dispatcher func(net.UDPAddr, GossipPacket)
 
 func RunServer(gossiper *Gossiper, server *Server, dispatcher Dispatcher) {
 	buf := make([]byte, 1024)
@@ -250,14 +284,26 @@ func RunServer(gossiper *Gossiper, server *Server, dispatcher Dispatcher) {
 			continue
 		}
 
-		var msg GossipPacket
+		var msg GossipPacketWire
 		err = protobuf.Decode(buf[:bufSize], &msg)
 		if err != nil {
 			log.Println("unable to decode msg:", err)
 			continue
 		}
 
-		go dispatcher(peerAddr, &msg)
+		err = msg.Check()
+		if err != nil {
+			log.Println("invalid GossipPacketWire received:", err)
+			return
+		}
+
+		pkg, err := msg.ToBase()
+		if err != nil {
+			log.Println("badly formatted GossipPacketWire received:", err)
+			return
+		}
+
+		go dispatcher(*peerAddr, pkg)
 	}
 }
 
@@ -278,10 +324,11 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 }
 
 func writeMsgToUDP(server *Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket) {
-	toSend, err := protobuf.Encode(&GossipPacket{
+	msg := GossipPacket{
 		Poll:   poll,
 		Status: status,
-	})
+	}.ToWire()
+	toSend, err := protobuf.Encode(&msg)
 
 	if err != nil {
 		log.Printf("unable to encode answer: %s", err)
@@ -354,7 +401,7 @@ func getStatus(gossiper *Gossiper) StatusPacket {
 }
 
 // Todo: how to properly use mapset.Set ???
-func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, s *StatusPacket) {
+func syncStatus(gossiper *Gossiper, peer net.UDPAddr, s StatusPacket) {
 	/*gossiper.Polls.RLock()
 	defer gossiper.Polls.RUnlock()
 
@@ -395,23 +442,14 @@ func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, s *StatusPacket) {
 }
 
 func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
-	return func(fromPeer *net.UDPAddr, pkg *GossipPacket) {
-		err := pkg.Check()
-		if err != nil {
-			log.Println("invalid GossipPacket received:", err)
-			return
-		}
-
-		g.addPeer(*fromPeer)
+	return func(fromPeer net.UDPAddr, pkg GossipPacket) {
+		g.addPeer(fromPeer)
 
 		if pkg.Poll != nil {
 			poll := *pkg.Poll
-			printPollPacket(g, fromPeer, poll)
+			poll.Print(fromPeer)
 
-			if g.Polls.Has(poll.ID) {
-				log.Println("dropping msg related to finished poll:", poll.ID)
-				return
-			}
+			g.Polls.Store(poll)
 
 			if !g.RunningPolls.Has(poll.ID) {
 				g.RunningPolls.Add(poll.ID, VoterHandler(g))
@@ -422,8 +460,7 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 		}
 
 		if pkg.Status != nil {
-			printStatus(g, fromPeer, pkg.Status)
-			syncStatus(g, fromPeer, pkg.Status)
+			syncStatus(g, fromPeer, *pkg.Status)
 		}
 
 	}

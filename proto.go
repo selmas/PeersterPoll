@@ -11,7 +11,7 @@ import (
 
 type PollKey struct {
 	Origin string
-	ID     uint
+	ID     uint32
 }
 
 func (msg PollKey) Check() error {
@@ -58,7 +58,37 @@ type Commitment struct {
 }
 
 func (msg Commitment) Check() error {
+	return nil
+}
+
+func (msg Commitment) ToWire() CommitmentWire {
+	return CommitmentWire{
+		Hash: msg.Hash[:],
+		Salt: msg.Salt[:],
+	}
+}
+
+// used only on the network because protobuf lib fail to encode fixed size array
+type CommitmentWire struct {
+	Hash []byte
+	Salt []byte
+}
+
+func (msg CommitmentWire) Check() error {
 	return nil // TODO check hash and salt size
+}
+
+func (msg CommitmentWire) ToBase() (Commitment, error) {
+	var c Commitment
+
+	if len(msg.Hash) != sha256.Size || len(msg.Salt) != SaltSize {
+		return c, errors.New("invalid hash/salt size")
+	}
+
+	copy(c.Hash[:], msg.Hash)
+	copy(c.Salt[:], msg.Salt)
+
+	return c, nil
 }
 
 func NewCommitment(answer string) Commitment {
@@ -120,7 +150,44 @@ type PollPacket struct {
 	Vote            *Vote
 }
 
-func (pkg PollPacket) Check() error {
+func (msg PollPacket) ToWire() PollPacketWire {
+	wire := msg.Commitment.ToWire()
+	return PollPacketWire{
+		ID:              msg.ID,
+		Poll:            msg.Poll,
+		Commitment:      &wire,
+		PollCommitments: msg.PollCommitments,
+		Vote:            msg.Vote,
+	}
+}
+
+type PollPacketWire struct {
+	ID              PollKey
+	Poll            *Poll
+	Commitment      *CommitmentWire
+	PollCommitments *PollCommitments
+	Vote            *Vote
+}
+
+func (msg PollPacketWire) ToBase() (PollPacket, error) {
+	ret := PollPacket{
+		ID:              msg.ID,
+		Poll:            msg.Poll,
+		PollCommitments: msg.PollCommitments,
+		Vote:            msg.Vote,
+	}
+
+	wire, err := msg.Commitment.ToBase()
+	if err != nil {
+		return ret, errors.New("GossipPacketWire: " + err.Error())
+	}
+
+	ret.Commitment = &wire
+
+	return ret, nil
+}
+
+func (pkg PollPacketWire) Check() error {
 	var nilCount uint = 0
 	var err error = nil
 
@@ -145,7 +212,7 @@ func (pkg PollPacket) Check() error {
 	}
 
 	if err != nil {
-		return errors.New("PollPacket: " + err.Error())
+		return errors.New("PollPacketWire: " + err.Error())
 	}
 	if nilCount > 1 {
 		return errors.New("too much fields defined")
@@ -180,7 +247,35 @@ type GossipPacket struct {
 	Status *StatusPacket
 }
 
-func (pkg GossipPacket) Check() error {
+func (msg GossipPacket) ToWire() GossipPacketWire {
+	wire := msg.Poll.ToWire()
+	return GossipPacketWire{
+		Poll:   &wire,
+		Status: msg.Status,
+	}
+}
+
+type GossipPacketWire struct {
+	Poll   *PollPacketWire
+	Status *StatusPacket
+}
+
+func (msg GossipPacketWire) ToBase() (GossipPacket, error) {
+	ret := GossipPacket{
+		Status: msg.Status,
+	}
+
+	wire, err := msg.Poll.ToBase()
+	if err != nil {
+		return ret, errors.New("GossipPacketWire: " + err.Error())
+	}
+
+	ret.Poll = &wire
+
+	return ret, nil
+}
+
+func (pkg GossipPacketWire) Check() error {
 	var nilCount uint = 0
 	var err error = nil
 	const head string = "GossipPacket: "

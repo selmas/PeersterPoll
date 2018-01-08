@@ -5,14 +5,13 @@ import (
 	"net"
 )
 
-func printPollPacket(gossiper *Gossiper, clientAddr *net.UDPAddr, pkg PollPacket) {
+func (pkg PollPacket) Print(clientAddr net.UDPAddr) {
 	fmt.Println(
 		"Poll ", pkg.ID.String(),
 		"from", clientAddr.String(),
 		// TODO "Question", pkg.pollQuestion.Question,
 		//"with options", strings.Join(msg.pollQuestion.VoteOptions, ","),
 	)
-	printPeers(gossiper)
 }
 
 func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *StatusPacket) {
@@ -25,28 +24,8 @@ func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *StatusPacket) {
 		// todo: add meaningful output for status
 	}*/
 	fmt.Println(str)
-	printPeers(gossiper)
 }
 
 func printFlippedCoin(addr *net.UDPAddr, typeOfFlip string) {
 	fmt.Println("FLIPPED COIN sending", typeOfFlip, "to", addr.String())
-}
-
-func printPeers(gossiper *Gossiper) {
-	var str string
-
-	firstPrint := true
-	gossiper.Peers.RLock()
-	for peer := range gossiper.Peers.Set {
-		if firstPrint {
-			str += peer
-			firstPrint = false
-			continue
-		}
-
-		str += "," + peer
-	}
-	gossiper.Peers.RUnlock()
-
-	fmt.Println(str)
 }

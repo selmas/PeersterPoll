@@ -39,7 +39,7 @@ build_all() {
 new_poll() {
 	local port=$1
 
-	client -UIPort $1 propose
+	client -UIPort $1 poll new
 }
 
 log_check() {
