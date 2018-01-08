@@ -86,9 +86,10 @@ func (s *PollSet) Store(pkg PollPacket) {
 	s.m[pkg.ID] = info
 }
 
+// TODO maybe split in two to have voter/server separation
 type RunningPollReader struct {
-	// TODO maybe split in two to have voter/server separation
 	Poll            <-chan Poll
+	LocalVote       <-chan string
 	Commitments     <-chan Commitment
 	PollCommitments <-chan PollCommitments
 	Votes           <-chan Vote
@@ -96,6 +97,7 @@ type RunningPollReader struct {
 
 type RunningPollWriter struct {
 	Poll            chan<- Poll
+	LocalVote       chan<- string
 	Commitments     chan<- Commitment
 	PollCommitments chan<- PollCommitments
 	Votes           chan<- Vote
@@ -205,7 +207,7 @@ type RoutingTable struct {
 type Gossiper struct {
 	sync.RWMutex // TODO use everywhere (for id change also)
 	Name         string
-	LastID       uint32
+	LastID       uint64
 	KeyPair      *ecdsa.PrivateKey
 	Peers        PeerSet
 	RunningPolls RunningPollSet
@@ -267,7 +269,7 @@ func NewPollKey(g *Gossiper) PollKey {
 	defer g.Unlock()
 
 	return PollKey{
-		ID:     atomic.AddUint32(&g.LastID, 1),
+		ID:     atomic.AddUint64(&g.LastID, 1),
 		Origin: g.Name,
 	}
 }
@@ -365,8 +367,7 @@ func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments) {
 	g.SendPollPacket(&pkg, nil)
 }
 
-func (g *Gossiper) SendVote(id PollKey, option string) {
-	vote := Vote{option}
+func (g *Gossiper) SendVote(id PollKey, vote Vote) {
 	pkg := PollPacket{
 		ID:   id,
 		Vote: &vote,

@@ -24,7 +24,7 @@ func poll_new(s Settings, args []string) {
 	// TODO hardcoded for now
 	msg := pkg.Poll{
 		Question: "What's the time?",
-		VoteOptions: []string{
+		Options: []string{
 			"10:25",
 			"10:30",
 			"Time is a weird and purely local definition",

@@ -14,8 +14,8 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 		}
 
 		// TODO for now, force first choice
-		assert(len(poll.VoteOptions) > 0)
-		option := poll.VoteOptions[0]
+		assert(len(poll.Options) > 0)
+		option := poll.Options[0]
 
 		commit := NewCommitment(option)
 		g.SendCommitment(id, commit)
@@ -29,7 +29,10 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 			return // to avoid loading network, we abort here
 		}
 
-		g.SendVote(id, option)
+		g.SendVote(id, Vote{
+			Salt:   [20]byte{}, // TODO empty salt, nice
+			Option: option,
+		})
 
 		// TODO save to gossiper
 	}

@@ -6,12 +6,13 @@ import (
 	"log"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type PollKey struct {
 	Origin string
-	ID     uint32
+	ID     uint64
 }
 
 func (msg PollKey) Check() error {
@@ -22,16 +23,36 @@ func (msg PollKey) Check() error {
 	return nil
 }
 
+const PollKeySep = "/"
+
 func (msg PollKey) String() string {
-	return msg.Origin + strconv.FormatUint(uint64(msg.ID), 10)
+	return msg.Origin + PollKeySep + strconv.FormatUint(msg.ID, 10)
+}
+
+func PollKeyFromString(packed string) (PollKey, error) {
+	var ret PollKey
+
+	splitted := strings.SplitN(packed, PollKeySep, 2)
+
+	id, err := strconv.ParseUint(splitted[1], 10, 64)
+	if err != nil {
+		return ret, err
+	}
+
+	ret = PollKey{
+		Origin: splitted[0],
+		ID:     id,
+	}
+
+	return ret, nil
 }
 
 // TODO: add option for origin node to sign / commit Question to guarantee integrity of it
 type Poll struct {
-	Question    string
-	VoteOptions []string
-	StartTime   time.Time
-	Duration    time.Duration // After duration has passed, can no longer participate in votes
+	Question  string
+	Options   []string
+	StartTime time.Time
+	Duration  time.Duration // After duration has passed, can no longer participate in votes
 }
 
 func (p Poll) IsTooLate() bool {
@@ -43,7 +64,7 @@ func (msg Poll) Check() error {
 		log.Println("no question")
 	}
 
-	if len(msg.VoteOptions) == 0 {
+	if len(msg.Options) == 0 {
 		log.Println("no choices")
 	}
 
@@ -52,6 +73,7 @@ func (msg Poll) Check() error {
 
 const SaltSize = 20
 
+// TODO not here, only used with voting
 type Commitment struct {
 	Hash [sha256.Size]byte
 	Salt [SaltSize]byte
@@ -133,6 +155,7 @@ func (msg PollCommitments) Has(c Commitment) bool {
 }
 
 type Vote struct {
+	Salt   [SaltSize]byte
 	Option string
 }
 
