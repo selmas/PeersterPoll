@@ -9,43 +9,45 @@
 
     <script type="text/javascript">
 
-        var currentQuestion = "";
-        var myAnswer = "";
+        var currentQuestion = new Map();
+        var myAnswer = new Map();
         var poll_results_interval;
 
 
-        function handle_update_list_options(question, options) {
+        function handle_update_list_options(question, options, pollId) {
             return function (data) {
-                if (data[0] === currentQuestion) {
+                if (data[0] === currentQuestion.get(pollId)) {
                     return
                 }
-                currentQuestion = data[0];
+                currentQuestion.set(pollId, data[0]);
 
-                document.getElementById("resultDiv").style.display = "none";
-                document.getElementById("answerPoll").style.display = "block";
-                $(options).empty();
+                document.getElementById("resultDiv"+pollId).style.display = "none";
+                document.getElementById("answerPoll"+pollId).style.display = "block";
+                $(options+pollId).empty();
 
                 data.forEach(function (item, index) {
                     if (index === 0) {
-                        $(question).text(item)
+                        $(question+pollId).text(item)
                     } else {
-                        $(options).append('<option value="' + item + '">' + item + '</option>');
+                        $(options+pollId).append('<option value="' + item + '">' + item + '</option>');
                     }
                 })
             }
         }
 
-        function update_poll_options() {
-            $.ajax("/poll", {
-                dataType: "json",
-                success: handle_update_list_options("#asked","#answer")
-            })
+        function poll_options_updater(pollId) {
+            return function () {
+                $.ajax("/poll/" + pollId, {
+                    dataType: "json",
+                    success: handle_update_list_options("#asked","#answer", pollId)
+                })
+            }
         }
 
 
-        function handle_poll_results() {
+        function handle_poll_results(pollId) {
             return function (data) {
-                if (myAnswer === "") {
+                if (myAnswer.get(pollId) === undefined) {
                     return
                 }
 
@@ -57,38 +59,83 @@
                 });
                 str += "</table>";
 
-                $("#results").html(str);
+                $("#results"+pollId).html(str);
                 clearInterval(poll_results_interval)
             }
         }
 
-        function update_poll_results() {
-            $.ajax("/vote", {
-                dataType: "json",
-                success: handle_poll_results()
-            })
+        function poll_results_updater(pollId) {
+            return function () {
+                $.ajax("/vote"+pollId, {
+                    dataType: "json",
+                    success: handle_poll_results(pollId)
+                })
+            }
         }
 
         function start_poll() {
-            $.post("/poll", $("#question").val() + "\n" + $("#options").val(), update_poll_options)
+            $.post("/poll", $("#question").val() + "\n" + $("#options").val())
         }
 
-        function send_poll_answer() {
-            if (currentQuestion === "") {
+        function send_poll_answer(pollId) {
+            if (currentQuestion.get(pollId) === undefined) {
                 return
             }
-            myAnswer = $("answer").val();
-            $.post("/vote", $("#answer").val());
-            document.getElementById("resultDiv").style.display = "block";
-            document.getElementById("answerPoll").style.display = "none";
+            myAnswer.set(pollId, $("answer"+pollId).val());
+            $.post("/vote/"+pollId, myAnswer.get(pollId));
+            document.getElementById("resultDiv" + pollId + "").style.display = "block";
+            document.getElementById("answerPoll" + pollId + "").style.display = "none";
 
-            $("#results").html("Waiting for the results...");
+            $("#results"+pollId).html("Waiting for the results...");
 
-            poll_results_interval = setInterval(update_poll_results, 2000)
+            poll_results_interval = setInterval(poll_results_updater(pollId), 2000)
+        }
+
+        var ongoingPolls = new Map();
+
+        function update_ongoing_polls() {
+            $.ajax("/poll", {
+                dataType: "json",
+                success: handle_new_polls()
+            })
+        }
+
+        function handle_new_polls() {
+            return function (data) {
+                data.forEach(function (item) {
+                    if (!ongoingPolls.has(item)) {
+                        ongoingPolls.set(item, "voting")
+                        create_new_poll(item);
+                    }
+                });
+            }
+        }
+
+        function poll_template(id) {
+            return '<div id="answerPoll' + id + '">\n' +
+                    '    Question: <br>\n' +
+                    '    <textarea id="asked' + id + '" disabled></textarea>\n' +
+                    '    <p>\n' +
+                    '    Choose your answer:\n' +
+                    '    <select id="answer' + id + '">\n' +
+                    '    </select>\n' +
+                    '    <button class="btn btn-primary" onclick="send_poll_answer(\''+ id +'\')">Vote!</button>\n' +
+                    '</div>\n' +
+                    '<div id="resultDiv' + id + '" style="display: none">\n' +
+                    '    <h3>Results</h3>\n' +
+                    '    <label id="results' + id + '">\n' +
+                    '\n' +
+                    '    </label>\n' +
+                    '</div>';
         }
 
 
-        setInterval(update_poll_options, 1000);
+        function create_new_poll(pollId) {
+            $("#ongoing_polls").append(poll_template(pollId));
+            setInterval(poll_options_updater(pollId), 1000);
+        }
+
+        setInterval(update_ongoing_polls, 1000);
 
     </script>
 </head>
@@ -105,23 +152,12 @@ Options (one per line): <br> <textarea id="options"></textarea>
 <button class="btn btn-primary" onclick="start_poll()">Ask!</button>
 
 <br><br>
-<h2>Ongoing Poll</h2>
-<div id="answerPoll">
-    Question: <br>
-    <textarea id="asked" disabled></textarea>
-    <p>
-    Choose your answer:
-    <select id="answer">
-        <!-- <option value="opt1"> option 1 </option>
-        <option value="opt2"> option 2 </option> -->
-    </select>
-    <button class="btn btn-primary" onclick="send_poll_answer()">Vote!</button>
-</div>
-<div id="resultDiv" style="display: none">
-    <h3>Results</h3>
-    <label id="results">
 
-    </label>
+<div id="ongoing_polls">
+<h2>Ongoing Polls</h2>
+
+
 </div>
+
 </div>
 </body>

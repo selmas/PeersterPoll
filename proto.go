@@ -194,14 +194,24 @@ type PollPacket struct {
 }
 
 func (msg PollPacket) ToWire() PollPacketWire {
-	c := msg.Commitment.ToWire()
-	v := msg.Vote.ToWire()
+	var c *CommitmentWire = nil
+	if msg.Commitment != nil {
+		wired := msg.Commitment.ToWire()
+		c = &wired
+	}
+
+	var v *VoteWire = nil
+	if msg.Vote != nil {
+		wired := msg.Vote.ToWire()
+		v = &wired
+	}
+
 	return PollPacketWire{
 		ID:              msg.ID,
 		Poll:            msg.Poll,
-		Commitment:      &c,
+		Commitment:      c,
 		PollCommitments: msg.PollCommitments,
-		Vote:            &v,
+		Vote:            v,
 	}
 }
 
@@ -222,18 +232,26 @@ func (msg PollPacketWire) ToBase() (PollPacket, error) {
 		PollCommitments: msg.PollCommitments,
 	}
 
-	c, err := msg.Commitment.ToBase()
-	if err != nil {
-		return ret, errors.New(head + err.Error())
+	var c *Commitment
+	if msg.Commitment != nil {
+		wired, err := msg.Commitment.ToBase()
+		if err != nil {
+			return ret, errors.New(head + err.Error())
+		}
+		c = &wired
 	}
 
-	v, err := msg.Vote.ToBase()
-	if err != nil {
-		return ret, errors.New(head + err.Error())
+	var v *Vote
+	if msg.Vote != nil {
+		wired, err := msg.Vote.ToBase()
+		if err != nil {
+			return ret, errors.New(head + err.Error())
+		}
+		v = &wired
 	}
 
-	ret.Commitment = &c
-	ret.Vote = &v
+	ret.Commitment = c
+	ret.Vote = v
 
 	return ret, nil
 }
@@ -310,9 +328,13 @@ type GossipPacket struct {
 }
 
 func (msg GossipPacket) ToWire() GossipPacketWire {
-	wire := msg.Poll.ToWire()
+	var wire *PollPacketWire = nil
+	if msg.Poll != nil {
+		wired := msg.Poll.ToWire()
+		wire = &wired
+	}
 	return GossipPacketWire{
-		Poll:   &wire,
+		Poll:   wire,
 		Status: msg.Status,
 	}
 }
@@ -327,12 +349,13 @@ func (msg GossipPacketWire) ToBase() (GossipPacket, error) {
 		Status: msg.Status,
 	}
 
-	wire, err := msg.Poll.ToBase()
-	if err != nil {
-		return ret, errors.New("GossipPacketWire: " + err.Error())
+	if msg.Poll != nil {
+		wire, err := msg.Poll.ToBase()
+		if err != nil {
+			return ret, errors.New("GossipPacketWire: " + err.Error())
+		}
+		ret.Poll = &wire
 	}
-
-	ret.Poll = &wire
 
 	return ret, nil
 }
