@@ -296,7 +296,7 @@ func (pkg PollPacketWire) Check() error {
 type StatusPacket struct {
 	Polls            []PollKey                // may be found via forwarding
 	Commitments      map[PollKey][]Commitment // so we can fetch the missing commitments
-	PollsCommitments []PollKey                // there is only one PollCommitments
+	PollsCommitments []PollKey                // there is only one Tags
 	Votes            map[PollKey][]Vote       // again, so we can fetch the missing votes
 }
 
@@ -335,12 +335,15 @@ func (msg GossipPacket) ToWire() GossipPacketWire {
 	}
 	return GossipPacketWire{
 		Poll:   wire,
+		Signature: msg.Signature,
 		Status: msg.Status,
 	}
 }
 
+
 type GossipPacketWire struct {
 	Poll   *PollPacketWire
+	Signature *Signature
 	Status *StatusPacket
 }
 

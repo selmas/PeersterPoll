@@ -30,12 +30,12 @@ type PeerSet struct {
 }
 
 type PollInfo struct {
-	Poll            *Poll
-	Commitments     []Commitment
-	PollCommitments *PollCommitments
-	Votes           []Vote
-	Participants    [][]*big.Int
-	Registry        *crypto2.PublicKey
+	Poll         *Poll
+	Commitments  []Commitment
+	Tags         map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
+	Votes        []Vote
+	Participants [][]*big.Int
+	Registry     *crypto2.PublicKey
 }
 
 type PollSet struct {
@@ -58,6 +58,7 @@ func (s *PollSet) Get(k PollKey) PollInfo {
 	return s.m[k]
 }
 
+// initialize tags mapping
 func (s *PollSet) Store(pkg PollPacket) {
 	s.Lock()
 	defer s.Unlock()
@@ -74,14 +75,6 @@ func (s *PollSet) Store(pkg PollPacket) {
 
 	if pkg.Commitment != nil {
 		info.Commitments = append(info.Commitments, *pkg.Commitment)
-	}
-
-	if pkg.PollCommitments != nil {
-		commits := *pkg.PollCommitments
-
-		// TODO commits != *info.PollCommitments -> bad rep
-
-		info.PollCommitments = &commits
 	}
 
 	if pkg.Vote != nil {
@@ -503,12 +496,14 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 		if pkg.Poll != nil {
 			poll := *pkg.Poll
 
-			if !signatureValid(pkg, *g){
+			if !signatureValid(pkg, *g) || doubleVoted(pkg, *g){
+				// TODO supect peer
 				return
 			}
 			poll.Print(fromPeer)
 
 			g.Polls.Store(poll)
+			g.Polls.m[pkg.Poll.ID].Tags[pkg.Signature.linkableRingSig.tag] = *pkg.Poll.Commitment
 
 			if !g.RunningPolls.Has(poll.ID) {
 				g.RunningPolls.Add(poll.ID, VoterHandler(g))
@@ -525,14 +520,25 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 	}
 }
 
+func doubleVoted(pkg GossipPacket, g Gossiper) bool {
+	tag := pkg.Signature.linkableRingSig.tag
+	commit, stored := g.Polls.m[pkg.Poll.ID].Tags[tag]
+
+	if stored{
+		return !(string(commit.Hash[:]) == string(pkg.Poll.Commitment.Hash[:]))
+	}
+
+	return false
+}
+
 func signatureValid(pkg GossipPacket, g Gossiper) bool {
 	poll := pkg.Poll
 
-	if (poll.Commitment != nil || poll.Vote != nil) && !(poll.Commitment != nil && poll.Vote != nil){
+	if poll.Commitment != nil || poll.Vote != nil {
 		return pkg.Signature.linkableRingSig != nil && verifySig(*pkg.Signature.linkableRingSig, g.Polls.m[pkg.Poll.ID].Participants)
 	}
 
-	if  (poll.PollCommitments != nil || poll.Poll != nil) && !(poll.PollCommitments != nil && poll.Poll != nil){
+	if poll.PollCommitments != nil || poll.Poll != nil {
 		input, err := json.Marshal(poll)
 		if err != nil {
 			log.Printf("unable to encode as json")
