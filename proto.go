@@ -195,14 +195,24 @@ type PollPacket struct {
 }
 
 func (msg PollPacket) ToWire() PollPacketWire {
-	c := msg.Commitment.ToWire()
-	v := msg.Vote.ToWire()
+	var c *CommitmentWire = nil
+	if msg.Commitment != nil {
+		wired := msg.Commitment.ToWire()
+		c = &wired
+	}
+
+	var v *VoteWire = nil
+	if msg.Vote != nil {
+		wired := msg.Vote.ToWire()
+		v = &wired
+	}
+
 	return PollPacketWire{
 		ID:              msg.ID,
 		Poll:            msg.Poll,
-		Commitment:      &c,
+		Commitment:      c,
 		PollCommitments: msg.PollCommitments,
-		Vote:            &v,
+		Vote:            v,
 	}
 }
 
