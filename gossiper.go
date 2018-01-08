@@ -218,6 +218,8 @@ type Gossiper struct {
 	Polls        PollSet
 	Server       Server
 	ValidKeys    []ecdsa.PublicKey
+	Reputations  RepOpinions
+	Blacklist    Blacklist
 }
 
 func (g *Gossiper) addPeer(addr net.UDPAddr) {
@@ -269,6 +271,8 @@ func NewGossiper(name string, server Server) (*Gossiper, error) {
 			m: make(map[PollKey]PollInfo),
 		},
 		ValidKeys: validKeys,
+		Reputations: make(RepOpinions),
+		Blacklist: make(Blacklist),
 	}, nil
 }
 
