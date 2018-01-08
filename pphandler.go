@@ -4,6 +4,7 @@ import (
 	"time"
 	"crypto/rand"
 	"crypto/ecdsa"
+	"math/big"
 )
 
 type PoolPacketHandler func(PollKey, RunningPollReader)
@@ -33,14 +34,8 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 			return
 		}
 
-		position := -1
-		for index, key := range participants {
-			if key[0].Cmp(tmpKeyPair.X) == 0 && key[1].Cmp(tmpKeyPair.Y) == 0 {
-				position = index
-			}
-		}
-		if position == -1 {
-			// TODO suspect registery? I'm not included in poll
+		position, ok := containsKey(particiants, tmpKeyPair.PublicKey)
+		if !ok {
 			return
 		}
 
@@ -56,6 +51,8 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 			return // to avoid loading network, we abort here
 		}
 
+		// TODO Block until received all commits or timeout
+
 		g.SendVote(id, Vote{
 			Salt:   [20]byte{}, // TODO empty salt, nice
 			Option: option,
@@ -63,7 +60,18 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 
 
 		// TODO save to gossiper
+		// TODO wait for timeout or to receive all votes
+		// TODO locally compute all votes and display to user -> GUI
 	}
+}
+
+func containsKey(keyArray [][]*big.Int, publicKey ecdsa.PublicKey) (int, bool) {
+	for index, key := range keyArray {
+		if key[0].Cmp(publicKey.X) == 0 && key[1].Cmp(publicKey.Y) == 0 {
+			return index, true
+		}
+	}
+	return -1, false
 }
 
 func MasterHandler(g *Gossiper) func(PollKey, RunningPollReader) {

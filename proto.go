@@ -49,7 +49,6 @@ func PollKeyFromString(packed string) (PollKey, error) {
 
 type MasterSignature []byte
 
-// TODO: add option for origin node to sign / commit Question to guarantee integrity of it
 type Poll struct {
 	Question  string
 	Options   []string

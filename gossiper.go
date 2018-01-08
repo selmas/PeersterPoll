@@ -350,8 +350,8 @@ func (g *Gossiper) SendPoll(id PollKey, msg Poll) {
 		ID:   id,
 		Poll: &msg,
 	}
-	// ##
-	g.SendPollPacket(&pkg, nil, nil)
+
+	g.SendPollPacket(&pkg, , nil)
 }
 
 func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey,	pos int) {
