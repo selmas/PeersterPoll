@@ -6,10 +6,21 @@ import "strconv"
 
 type RepOpinions map[string]int
 
+func NewRepOpinions(peers []string) RepOpinions {
+	repOps := make(RepOpinions)
+	for _, peer := range peers {
+		repOps[peer] = 1
+	}
+
+	return repOps
+}
+
 func (opinions RepOpinions) Suspect(peer string) {
 	opinions[peer] = -1
 }
 
+// Trust should not be needed as long as table is initialized
+// TODO trust all new peers to add them to the map
 func (opinions RepOpinions) Trust(peer string) {
 	// Opinion can only change from trusting to suspecting,
 	// not the other way around
@@ -41,13 +52,13 @@ type ReputationMap map[string]*Reputation
 
 type ReputationTable struct {
 	Reputations ReputationMap
-	Threshold   int
+	//Threshold   int
 }
 
-func NewReputationTable(threshold int) ReputationTable {
+func NewReputationTable() ReputationTable {
 	return ReputationTable{
 		Reputations: make(ReputationMap),
-		Threshold:   threshold,
+		//Threshold:   threshold,
 	}
 }
 
@@ -98,7 +109,7 @@ func (repTable ReputationTable) regularize() {
 }
 
 func (repTable ReputationTable) String() string {
-	str := "Threshold: " + strconv.Itoa(repTable.Threshold) + "\n"
+	str := ""
 
 	for peer, rep := range repTable.Reputations {
 		str += peer + "\t...\t" + strconv.Itoa(rep.Value) + "\n"
@@ -122,7 +133,7 @@ func (bList Blacklist) add(peer string) {
 // This should be used after having a final reputation table considering the opinions of the other peers
 func (bList Blacklist) UpdateBlacklist(repTable ReputationTable) {
 	for peer, rep := range repTable.Reputations {
-		if rep.Value < repTable.Threshold {
+		if rep.Value < 0 {
 			bList.add(peer)
 		}
 	}
@@ -152,6 +163,6 @@ type ReputationPacket struct {
 	Signature []byte //TODO change according to representation
 }
 
-func updateReputations() {
-
+func updateReputations(g *Gossiper) {
+	//g.SendOpinion()
 }

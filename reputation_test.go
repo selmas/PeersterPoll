@@ -29,9 +29,9 @@ func TestBlacklist(t *testing.T) {
 }
 
 func TestOpinions(t *testing.T) {
-	repTabA := NewReputationTable(-3)
-	repTabB := NewReputationTable(-3)
-	repTabC := NewReputationTable(-3)
+	repTabA := NewReputationTable()
+	repTabB := NewReputationTable()
+	repTabC := NewReputationTable()
 
 	peerA := "peerA"
 	peerB := "peerB"
