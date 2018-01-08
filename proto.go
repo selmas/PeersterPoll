@@ -6,12 +6,13 @@ import (
 	"log"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type PollKey struct {
 	Origin string
-	ID     uint32
+	ID     uint64
 }
 
 func (msg PollKey) Check() error {
@@ -22,16 +23,39 @@ func (msg PollKey) Check() error {
 	return nil
 }
 
+const PollKeySep = "/"
+
 func (msg PollKey) String() string {
-	return msg.Origin + strconv.FormatUint(uint64(msg.ID), 10)
+	return msg.Origin + PollKeySep + strconv.FormatUint(msg.ID, 10)
 }
+
+func PollKeyFromString(packed string) (PollKey, error) {
+	var ret PollKey
+
+	splitted := strings.SplitN(packed, PollKeySep, 2)
+
+	id, err := strconv.ParseUint(splitted[1], 10, 64)
+	if err != nil {
+		return ret, err
+	}
+
+	ret = PollKey{
+		Origin: splitted[0],
+		ID:     id,
+	}
+
+	return ret, nil
+}
+
+type MasterSignature []byte
 
 // TODO: add option for origin node to sign / commit Question to guarantee integrity of it
 type Poll struct {
-	Question    string
-	VoteOptions []string
-	StartTime   time.Time
-	Duration    time.Duration // After duration has passed, can no longer participate in votes
+	Question  string
+	Options   []string
+	StartTime time.Time
+	Duration  time.Duration // After duration has passed, can no longer participate in votes
+	Signature MasterSignature
 }
 
 func (p Poll) IsTooLate() bool {
@@ -43,7 +67,7 @@ func (msg Poll) Check() error {
 		log.Println("no question")
 	}
 
-	if len(msg.VoteOptions) == 0 {
+	if len(msg.Options) == 0 {
 		log.Println("no choices")
 	}
 
@@ -52,9 +76,9 @@ func (msg Poll) Check() error {
 
 const SaltSize = 20
 
+// TODO not here, only used with voting
 type Commitment struct {
 	Hash [sha256.Size]byte
-	Salt [SaltSize]byte
 }
 
 func (msg Commitment) Check() error {
@@ -64,14 +88,12 @@ func (msg Commitment) Check() error {
 func (msg Commitment) ToWire() CommitmentWire {
 	return CommitmentWire{
 		Hash: msg.Hash[:],
-		Salt: msg.Salt[:],
 	}
 }
 
 // used only on the network because protobuf lib fail to encode fixed size array
 type CommitmentWire struct {
 	Hash []byte
-	Salt []byte
 }
 
 func (msg CommitmentWire) Check() error {
@@ -81,12 +103,11 @@ func (msg CommitmentWire) Check() error {
 func (msg CommitmentWire) ToBase() (Commitment, error) {
 	var c Commitment
 
-	if len(msg.Hash) != sha256.Size || len(msg.Salt) != SaltSize {
-		return c, errors.New("invalid hash/salt size")
+	if len(msg.Hash) != sha256.Size {
+		return c, errors.New("invalid hash size")
 	}
 
 	copy(c.Hash[:], msg.Hash)
-	copy(c.Salt[:], msg.Salt)
 
 	return c, nil
 }
@@ -95,6 +116,7 @@ func NewCommitment(answer string) Commitment {
 	var salt [SaltSize]byte
 	rand.Read(salt[:])
 
+	// TODO move to dedicated hash func
 	toHash := make([]byte, 0)
 	toHash = append(toHash, []byte(answer)[:]...)
 	toHash = append(toHash, salt[:]...)
@@ -103,7 +125,6 @@ func NewCommitment(answer string) Commitment {
 
 	return Commitment{
 		Hash: hash,
-		Salt: salt,
 	}
 }
 
@@ -133,13 +154,36 @@ func (msg PollCommitments) Has(c Commitment) bool {
 }
 
 type Vote struct {
+	Salt   [SaltSize]byte
 	Option string
 }
 
-func (msg Vote) Check() error {
-	// TODO check that option is in list
+func (msg Vote) ToWire() VoteWire {
+	return VoteWire{
+		Salt:   msg.Salt[:],
+		Option: msg.Option,
+	}
+}
 
+type VoteWire struct {
+	Salt   []byte
+	Option string
+}
+
+func (msg VoteWire) Check() error {
 	return nil
+}
+
+func (msg VoteWire) ToBase() (Vote, error) {
+	var v Vote
+
+	if len(msg.Salt) != SaltSize {
+		return v, errors.New("invalid salt size")
+	}
+
+	copy(v.Salt[:], msg.Salt)
+
+	return v, nil
 }
 
 type PollPacket struct {
@@ -151,13 +195,14 @@ type PollPacket struct {
 }
 
 func (msg PollPacket) ToWire() PollPacketWire {
-	wire := msg.Commitment.ToWire()
+	c := msg.Commitment.ToWire()
+	v := msg.Vote.ToWire()
 	return PollPacketWire{
 		ID:              msg.ID,
 		Poll:            msg.Poll,
-		Commitment:      &wire,
+		Commitment:      &c,
 		PollCommitments: msg.PollCommitments,
-		Vote:            msg.Vote,
+		Vote:            &v,
 	}
 }
 
@@ -166,23 +211,30 @@ type PollPacketWire struct {
 	Poll            *Poll
 	Commitment      *CommitmentWire
 	PollCommitments *PollCommitments
-	Vote            *Vote
+	Vote            *VoteWire
 }
 
 func (msg PollPacketWire) ToBase() (PollPacket, error) {
+	const head = "GossipPacketWire: "
+
 	ret := PollPacket{
 		ID:              msg.ID,
 		Poll:            msg.Poll,
 		PollCommitments: msg.PollCommitments,
-		Vote:            msg.Vote,
 	}
 
-	wire, err := msg.Commitment.ToBase()
+	c, err := msg.Commitment.ToBase()
 	if err != nil {
-		return ret, errors.New("GossipPacketWire: " + err.Error())
+		return ret, errors.New(head + err.Error())
 	}
 
-	ret.Commitment = &wire
+	v, err := msg.Vote.ToBase()
+	if err != nil {
+		return ret, errors.New(head + err.Error())
+	}
+
+	ret.Commitment = &c
+	ret.Vote = &v
 
 	return ret, nil
 }

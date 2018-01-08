@@ -18,8 +18,8 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 		// TODO rumor poll
 
 		// TODO GUI for now, force first choice
-		assert(len(poll.VoteOptions) > 0)
-		option := poll.VoteOptions[0]
+		assert(len(poll.Options) > 0)
+		option := poll.Options[0]
 
 		tmpKeyPair, ok := ecdsa.GenerateKey(curve, rand.Reader) // generates key pair
 		if !ok {
@@ -56,7 +56,11 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 			return // to avoid loading network, we abort here
 		}
 
-		g.SendVote(id, option, participants, tmpKeyPair, position)
+		g.SendVote(id, Vote{
+			Salt:   [20]byte{}, // TODO empty salt, nice
+			Option: option,
+		}, participants, tmpKeyPair, position)
+
 
 		// TODO save to gossiper
 	}
