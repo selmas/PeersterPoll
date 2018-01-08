@@ -300,9 +300,13 @@ type GossipPacket struct {
 }
 
 func (msg GossipPacket) ToWire() GossipPacketWire {
-	wire := msg.Poll.ToWire()
+	var wire *PollPacketWire = nil
+	if msg.Poll != nil {
+		wired := msg.Poll.ToWire()
+		wire = &wired
+	}
 	return GossipPacketWire{
-		Poll:   &wire,
+		Poll:   wire,
 		Status: msg.Status,
 	}
 }
@@ -317,12 +321,13 @@ func (msg GossipPacketWire) ToBase() (GossipPacket, error) {
 		Status: msg.Status,
 	}
 
-	wire, err := msg.Poll.ToBase()
-	if err != nil {
-		return ret, errors.New("GossipPacketWire: " + err.Error())
+	if msg.Poll != nil {
+		wire, err := msg.Poll.ToBase()
+		if err != nil {
+			return ret, errors.New("GossipPacketWire: " + err.Error())
+		}
+		ret.Poll = &wire
 	}
-
-	ret.Poll = &wire
 
 	return ret, nil
 }
