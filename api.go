@@ -1,6 +1,7 @@
-package main
+package pollparty
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -101,6 +102,30 @@ func createFakePollResults(options []string) map[string]int {
 	return results
 }
 
+func apiNewPoll(g *Gossiper) func(http.ResponseWriter, *http.Request) {
+	buf := make([]byte, 1024)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		var poll Poll
+
+		size, _ := r.Body.Read(buf)
+		err := json.Unmarshal(buf[:size], &poll)
+		if err != nil {
+			log.Println("unable to decode as Poll")
+			return
+		}
+
+		log.Println("got new poll")
+
+		id := NewPollKey(g)
+		g.RunningPolls.Add(id, MasterHandler(g))
+		g.RunningPolls.Send(id, PollPacket{
+			ID:   id,
+			Poll: &poll,
+		})
+	}
+}
+
 func apiStart(gossiper *Gossiper, uiPort string) {
 
 	// TODO delete this and replace others with gossiper
@@ -114,7 +139,9 @@ func apiStart(gossiper *Gossiper, uiPort string) {
 	r.HandleFunc("/vote", apiGetPollResults(fgossiper)).Methods("GET")
 	r.HandleFunc("/vote", apiVoteForPoll(fgossiper)).Methods("POST")
 
-	r.Handle("/", http.FileServer(http.Dir(".")))
+  r.HandleFunc("/poll", apiNewPoll(gossiper)).Methods("PUT")
+
+  r.Handle("/", http.FileServer(http.Dir(".")))
 	http.Handle("/", r)
 
 	http.ListenAndServe(":"+uiPort, nil)

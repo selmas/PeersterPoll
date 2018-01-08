@@ -1,26 +1,25 @@
-package main
+package pollparty
 
 import (
 	"math/big"
 	"crypto/sha256"
 	"strconv"
 	"fmt"
-	"math/rand"
-	"time"
+	"crypto/rand"
 )
 
 // msg contains hash of message to get signed
 type LinkableRingSignature struct {
 	msg []byte
 	c0  []byte
-	s   []big.Int
+	s   []*big.Int
 	tag [2]*big.Int
 }
 
-func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (LinkableRingSignature, [][]byte) {
-	if L[pos][0].Cmp(gossiper.KeyPair.X) != 0 && L[pos][1].Cmp(gossiper.KeyPair.Y) != 0{
+func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) LinkableRingSignature {
+	if pos > len(L) || L[pos][0].Cmp(gossiper.KeyPair.X) != 0 && L[pos][1].Cmp(gossiper.KeyPair.Y) != 0{
 		fmt.Println("Linkable ring signature generation failed: public key not in L")
-		return LinkableRingSignature{}, [][]byte{}
+		return LinkableRingSignature{}
 	}
 
 	var tag [2]*big.Int
@@ -31,13 +30,14 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (Linkab
 	}
 
 	Hx, Hy := mapToPoint(pubKeys)
-	p := curve.Params().P
+	n := curve.Params().N
 
 	tag[0], tag[1] = curve.ScalarMult(Hx, Hy, gossiper.KeyPair.D.Bytes())
 	
-	r := rand.New(rand.NewSource(time.Now().Unix()))
-	u := new(big.Int)
-	u.Rand(r, p)
+	u, err := rand.Int(rand.Reader, n)
+	if err != nil {
+		fmt.Println("rand.Int failed:", err)
+	}
 
 	commonPart := pubKeys
 	commonPart = append(append(commonPart, tag[0].Bytes()...), tag[1].Bytes()...)
@@ -50,7 +50,7 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (Linkab
 	hashInput = append(append(hashInput, uHx.Bytes()...), uHy.Bytes()...)
 
 	hash := sha256.New()
-	_, err := hash.Write(hashInput)
+	_, err = hash.Write(hashInput)
 	if err != nil {
 		fmt.Println("hash.Write failed:", err)
 	}
@@ -59,29 +59,27 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (Linkab
 	c := make([][]byte, len(L))
 	if pos == len(L)-1{
 		c[0] = hash.Sum(nil)
-		fmt.Printf("c[%d] %x\n", 0,c[0])
 	} else {
 		c[pos+1] = hash.Sum(nil)
-		fmt.Printf("c[%d] %x\n", pos+1,c[pos+1])
 	}
 
 
-	s := make([]big.Int, len(L))
+	s := make([]*big.Int, len(L))
 
 	// c[i+1] = hash(L, Tag, msg, s[i]*G + s[i]*Yi, s[i]*H + c[i]*Tag)
 	// c[pos+2] to c[len(L)-1], c[0]
 	for i := pos+1; i < len(L); i++  {
-		fmt.Printf("Round %d\n",i)
-		s[i].Rand(r, p)
+		s[i], err = rand.Int(rand.Reader, n)
+		if err != nil {
+			fmt.Println("rand.Int failed:", err)
+		}
 
 		siGx, siGy := curve.ScalarBaseMult(s[i].Bytes())
 		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
-		fmt.Printf("ciYix %d\n ciYiy %d\n",ciYix,ciYiy)
 		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
 
 		siHx, siHy := curve.ScalarMult(Hx, Hy, s[i].Bytes())
 		ciTagx, ciTagy := curve.ScalarMult(tag[0], tag[1], c[i])
-		fmt.Printf("ciTagx %d\n ciTagy %d\n",ciTagx,ciTagy)
 		siHciTagx, siHciTagy := curve.Add(siHx, siHy, ciTagx, ciTagy)
 
 		hashInput := append(append(commonPart, siGciYix.Bytes()...), siGciYiy.Bytes()...)
@@ -95,10 +93,8 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (Linkab
 
 		if i == len(L)-1 {
 			c[0] = hash.Sum(nil)
-			fmt.Printf("c[%d] %x\n", 0,c[0])
 		} else {
 			c[i+1] = hash.Sum(nil)
-			fmt.Printf("c[%d] %x\n", i+1,c[i+1])
 		}
 
 	}
@@ -106,17 +102,17 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (Linkab
 	// c[i] = hash(L, Tag, msg, siG + siYi, siH + ciTag)
 	// c[1] to c[pos]
 	for i := 0; i < pos ; i++ {
-		fmt.Printf("Round %d\n",i)
-		s[i].Rand(r, p)
+		s[i], err = rand.Int(rand.Reader, n)
+		if err != nil {
+			fmt.Println("rand.Int failed:", err)
+		}
 
 		siGx, siGy := curve.ScalarBaseMult(s[i].Bytes())
 		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
-		fmt.Printf("ciYix %d\n ciYiy %d\n",ciYix,ciYiy)
 		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
 
 		siHx, siHy := curve.ScalarMult(Hx, Hy, s[i].Bytes())
 		ciTagx, ciTagy := curve.ScalarMult(tag[0], tag[1], c[i])
-		fmt.Printf("ciTagx %d\n ciTagy %d\n",ciTagx,ciTagy)
 		siHciTagx, siHciTagy := curve.Add(siHx, siHy, ciTagx, ciTagy)
 
 		hashInput := append(append(commonPart, siGciYix.Bytes()...), siGciYiy.Bytes()...)
@@ -129,22 +125,21 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) (Linkab
 		}
 
 		c[i+1] = hash.Sum(nil)
-		fmt.Printf("c[%d] %x\n", i+1,c[i+1])
-
 	}
 
-	// s_pos = u - privKey * c[pos] mod p
+	// s_pos = u - privKey * c[pos] mod n
 	cPos := new(big.Int).SetBytes(c[pos])
 	privKeyCpos := new(big.Int).Mul(gossiper.KeyPair.D, cPos)
+	privKeyCpos = new(big.Int).Mod(privKeyCpos, n)
 
-	s[pos].Sub(u,privKeyCpos)
-	s[pos].Mod(&s[pos],p)
+	s[pos] = new(big.Int).Sub(u,privKeyCpos)
+	s[pos] = new(big.Int).Add(s[pos], n)
+	s[pos]= new(big.Int).Mod(s[pos],n) // PROBLEM!!
 
-	return LinkableRingSignature{msg, c[0], s, tag}, c
+	return LinkableRingSignature{msg, c[0], s, tag}
 }
 
 func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
-	fmt.Println("VERIFICATION")
 	var pubKeys []byte
 	for _, keyPair := range L {
 		pubKeys = append(pubKeys, keyPair[0].Bytes()...)
@@ -155,7 +150,6 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
 
 	c := make([][]byte, len(L)+1)
 	c[0] = sig.c0
-	fmt.Printf("c[%d] %x\n", 0,c[0])
 
 	// hash(L, Tag, msg, si*G + ci*Yi, si*H + ci*Tag)
 	commonPart := pubKeys
@@ -163,16 +157,12 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
 	commonPart = append(commonPart, sig.msg...)
 
 	for i:=0; i<len(L); i++ {
-		fmt.Printf("Round %d\n",i)
-
 		siGx, siGy := curve.ScalarBaseMult(sig.s[i].Bytes())
 		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
-		fmt.Printf("ciYix %d\n ciYiy %d\n",ciYix,ciYiy)
 		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
 
 		siHx, siHy := curve.ScalarMult(Hx, Hy, sig.s[i].Bytes())
 		ciTagx, ciTagy := curve.ScalarMult(sig.tag[0], sig.tag[1], c[i])
-		fmt.Printf("ciTagx %d\n ciTagy %d\n",ciTagx,ciTagy)
 		siHciTagx, siHciTagy := curve.Add(siHx, siHy, ciTagx, ciTagy)
 
 		hashInput := append(append(commonPart, siGciYix.Bytes()...), siGciYiy.Bytes()...)
@@ -184,7 +174,6 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
 			fmt.Println("hash.Write failed:", err)
 		}
 		c[i+1] = hash.Sum(nil)
-		fmt.Printf("c[%d] %x\n", i+1,c[i+1])
 	}
 
 	if string(c[0]) == string(c[len(L)]) {
