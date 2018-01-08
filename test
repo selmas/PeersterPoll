@@ -2,6 +2,11 @@
 
 . ./test_lib.sh
 
+set -x
+
+new_key A
+new_key B
+
 start_server A 10000 5000 127.0.0.1:5001
 start_server B 10001 5001 127.0.0.1:5000
 

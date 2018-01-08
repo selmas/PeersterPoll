@@ -1,6 +1,9 @@
 package pollparty
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"errors"
 	"log"
 	"math/rand"
 	"net"
@@ -8,12 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"errors"
 	"github.com/dedis/protobuf"
-
-	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
 )
 
 type Server struct {
@@ -204,15 +202,20 @@ type RoutingTable struct {
 	Table map[string]Route
 }
 
+func Curve() elliptic.Curve {
+	return elliptic.P256()
+}
+
 type Gossiper struct {
 	sync.RWMutex // TODO use everywhere (for id change also)
 	Name         string
 	LastID       uint64
-	KeyPair      *ecdsa.PrivateKey
+	KeyPair      ecdsa.PrivateKey
 	Peers        PeerSet
 	RunningPolls RunningPollSet
 	Polls        PollSet
-	Server       *Server
+	Server       Server
+	ValidKeys    []ecdsa.PublicKey
 }
 
 func (g *Gossiper) addPeer(addr net.UDPAddr) {
@@ -222,7 +225,7 @@ func (g *Gossiper) addPeer(addr net.UDPAddr) {
 	g.Peers.Set[addr.String()] = true
 }
 
-func NewServer(address string) *Server {
+func NewServer(address string) Server {
 	addr, err := net.ResolveUDPAddr("udp4", address)
 	if err != nil {
 		log.Fatal(err)
@@ -233,19 +236,21 @@ func NewServer(address string) *Server {
 		log.Fatal(err)
 	}
 
-	return &Server{
+	return Server{
 		Addr: addr,
 		Conn: conn,
 	}
 }
 
-func NewGossiper(name string, server *Server) (*Gossiper, error) {
-	curve = elliptic.P256()
-	// Reader is a global, shared instance of a cryptographically strong pseudo-random generator.
-	keyPair, err := ecdsa.GenerateKey(curve, crypto.Reader) // generates key pair
-
+func NewGossiper(name string, server Server) (*Gossiper, error) {
+	keyPair, err := PrivateKeyLoad(PrivateKeyFileName(name))
 	if err != nil {
 		return nil, errors.New("Elliptic Curve Generation: " + err.Error())
+	}
+
+	validKeys, err := KeyFileLoad()
+	if err != nil {
+		return nil, errors.New("NewGossiper: " + err.Error())
 	}
 
 	return &Gossiper{
@@ -261,6 +266,7 @@ func NewGossiper(name string, server *Server) (*Gossiper, error) {
 		Polls: PollSet{
 			m: make(map[PollKey]PollInfo),
 		},
+		ValidKeys: validKeys,
 	}, nil
 }
 
@@ -276,7 +282,7 @@ func NewPollKey(g *Gossiper) PollKey {
 
 type Dispatcher func(net.UDPAddr, GossipPacket)
 
-func RunServer(gossiper *Gossiper, server *Server, dispatcher Dispatcher) {
+func RunServer(gossiper *Gossiper, server Server, dispatcher Dispatcher) {
 	buf := make([]byte, 1024)
 
 	for {
@@ -325,7 +331,7 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	return addr
 }
 
-func writeMsgToUDP(server *Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket) {
+func writeMsgToUDP(server Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket) {
 	msg := GossipPacket{
 		Poll:   poll,
 		Status: status,
