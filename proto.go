@@ -243,8 +243,9 @@ func (pkg StatusPacket) Check() error {
 }
 
 type GossipPacket struct {
-	Poll   *PollPacket
-	Status *StatusPacket
+	Poll      *PollPacket
+	Signature *LinkableRingSignature
+	Status    *StatusPacket
 }
 
 func (msg GossipPacket) ToWire() GossipPacketWire {

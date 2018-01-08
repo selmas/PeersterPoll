@@ -14,6 +14,8 @@ import (
 	"github.com/dedis/protobuf"
 
 	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
+	"math/big"
+	"encoding/json"
 )
 
 type Server struct {
@@ -325,10 +327,11 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	return addr
 }
 
-func writeMsgToUDP(server *Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket) {
+func writeMsgToUDP(server *Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket, signature *LinkableRingSignature) {
 	msg := GossipPacket{
-		Poll:   poll,
-		Status: status,
+		Poll:      poll,
+		Signature: signature,
+		Status:    status,
 	}.ToWire()
 	toSend, err := protobuf.Encode(&msg)
 
@@ -345,17 +348,23 @@ func (g *Gossiper) SendPoll(id PollKey, msg Poll) {
 		ID:   id,
 		Poll: &msg,
 	}
-
-	g.SendPollPacket(&pkg, nil)
+	// ##
+	g.SendPollPacket(&pkg, nil, nil)
 }
 
-func (g *Gossiper) SendCommitment(id PollKey, msg Commitment) {
+func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey,	pos int) {
 	pkg := PollPacket{
 		ID:         id,
 		Commitment: &msg,
 	}
+	input, err := json.Marshal(pkg)
+	if err != nil {
+		log.Printf("unable to encode as json")
+		return
+	}
 
-	g.SendPollPacket(&pkg, nil)
+	sig := generateSig(input, participants, tmpKey, pos)
+	g.SendPollPacket(&pkg, &sig,nil)
 }
 
 func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments) {
@@ -367,24 +376,30 @@ func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments) {
 	g.SendPollPacket(&pkg, nil)
 }
 
-func (g *Gossiper) SendVote(id PollKey, option string) {
+func (g *Gossiper) SendVote(id PollKey, option string, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey,	pos int) {
 	vote := Vote{option}
 	pkg := PollPacket{
 		ID:   id,
 		Vote: &vote,
 	}
+	input, err := json.Marshal(pkg)
+	if err != nil {
+		log.Printf("unable to encode as json")
+		return
+	}
 
-	g.SendPollPacket(&pkg, nil)
+	sig := generateSig(input, participants, tmpKey, pos)
+	g.SendPollPacket(&pkg, &sig, nil)
 }
 
-func (g *Gossiper) SendPollPacket(msg *PollPacket, fromPeer *net.UDPAddr) {
+func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *LinkableRingSignature, fromPeer *net.UDPAddr) {
 	for {
 		peer := getRandomPeer(&g.Peers, fromPeer)
 		if peer == nil {
 			break
 		}
 
-		writeMsgToUDP(g.Server, peer, msg, nil)
+		writeMsgToUDP(g.Server, peer, msg, nil, sig)
 
 		printFlippedCoin(peer, "rumor")
 		if rand.Intn(2) == 0 {
@@ -490,6 +505,6 @@ func AntiEntropyGossip(gossiper *Gossiper) {
 
 		printFlippedCoin(peer, "status")
 		status := getStatus(gossiper)
-		writeMsgToUDP(gossiper.Server, peer, nil, &status)
+		writeMsgToUDP(gossiper.Server, peer, nil, &status, nil)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"fmt"
 	"crypto/rand"
+	"crypto/ecdsa"
 )
 
 // msg contains hash of message to get signed
@@ -16,8 +17,8 @@ type LinkableRingSignature struct {
 	tag [2]*big.Int
 }
 
-func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) LinkableRingSignature {
-	if pos > len(L) || L[pos][0].Cmp(gossiper.KeyPair.X) != 0 && L[pos][1].Cmp(gossiper.KeyPair.Y) != 0{
+func generateSig(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) LinkableRingSignature {
+	if pos > len(L) || L[pos][0].Cmp(tmpKey.X) != 0 && L[pos][1].Cmp(tmpKey.Y) != 0{
 		fmt.Println("Linkable ring signature generation failed: public key not in L")
 		return LinkableRingSignature{}
 	}
@@ -32,7 +33,7 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) Linkabl
 	Hx, Hy := mapToPoint(pubKeys)
 	n := curve.Params().N
 
-	tag[0], tag[1] = curve.ScalarMult(Hx, Hy, gossiper.KeyPair.D.Bytes())
+	tag[0], tag[1] = curve.ScalarMult(Hx, Hy, tmpKey.D.Bytes())
 	
 	u, err := rand.Int(rand.Reader, n)
 	if err != nil {
@@ -129,7 +130,7 @@ func generateSig(msg []byte, L [][]*big.Int, gossiper Gossiper, pos int) Linkabl
 
 	// s_pos = u - privKey * c[pos] mod n
 	cPos := new(big.Int).SetBytes(c[pos])
-	privKeyCpos := new(big.Int).Mul(gossiper.KeyPair.D, cPos)
+	privKeyCpos := new(big.Int).Mul(tmpKey.D, cPos)
 	privKeyCpos = new(big.Int).Mod(privKeyCpos, n)
 
 	s[pos] = new(big.Int).Sub(u,privKeyCpos)
