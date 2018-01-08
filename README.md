@@ -11,6 +11,7 @@ other. After dispatching the votes, everyone can locally open the received messa
 The main functionality is to allow users to propose a question to everyone and have a poll, in which the users cannot be influenced by the votes of everyone else. However, they should still have the certainty that no user changed their vote after seeing  to everyone being able to see the content of their vote without everyone noticing it. This vote can be seen as a question with several different possible answers which the proposer defines as well. Then the question and the different possible, predefined answers are spread across the network (basic Peerster functionality) and everyone in the Peerster network should get it. Then the users should be able to vote through the GUI selecting one of the answers. Once the user selects this answer the user's Peerster node will register for the vote by sending his temporary public key, signed by his master public key, to the peer that proposed the poll (registery Node).  Once the poll is closed, the registery will no longer accept new registrations for the poll and instead start to gossip the list of all the participants. Using this list the participating peers can now commit to their vote, sign this commitment using a linkable ring signature and gossip it in the network. Once a peer has received all the commits (number commit equals number of participants in poll) or a timeout has occured (to be robust against node failure of a ~~gossip this vote. However this vote will be encrypted with a key known only by the sending node. After every node received every vote from the active nodes, each node gossips their key making it possible for every node to locally calculate the vote's results.~~ ~~ The goal is not to vote anonymously but just making sure voters don't know anyone else's decision before making their own while still archiving the property that once a vote is casted, voters cannot change their mind.
 
 **MOVE TO REPUTATION SYSTEM AND MODIFY**
+
 In the basic set-up of the voting scheme we want to archive the following security properties for a scenario in which we have an adversary controlling one or multiple peers in the network (passive adversaries) that follows the protocol exactly but tries to learn as much as possible:
 
 - **Privacy:** The adversary is not able to learn any information about the inputs and outputs of other peers except of what he would learn from the inputs and outputs of his corrupted peers anyway
@@ -36,7 +37,7 @@ Another solution is seen in the incentives system of BitTorrent where a tit-for-
 We can take a similar approach to the first solution where a peer's reputation is immediately affected when another peer notices its bad behavior and rates it negatively. This will then be used to exclude peers from polls in which they misbehaved. The opposite also happens, i.e. the rewarding of well behaved peers. A peer with a good track record, will have a matching high reputation.
 
 ### Authentication Scheme:
-For the authentication scheme, we will use a kind of web of trust, as used in GPG. It will be easier, as there is no quality of trust but only if at some point, the key signing was signed by the root key. An issue with it is that trust if recursively given to everybody who was signed by the root key. That’s not an issue per se as every participant should know the importance of signing another key, and as soon as someone get cornered into signing an attacker related key, the attacker can cross sign everything. To mitigate that, we can add revocation, should the problem arise, but having eternal key for a given origin is way easier to support. If there is any issue with a given network, we can anyway easily create a new one, with newly created key. Having a short lived voting group is pretty fit to the physical use of voting, such as during a meeting or a paraoïd group of friend.
+~~For the authentication scheme, we will use a kind of web of trust, as used in GPG. It will be easier, as there is no quality of trust but only if at some point, the key signing was signed by the root key. An issue with it is that trust if recursively given to everybody who was signed by the root key. That’s not an issue per se as every participant should know the importance of signing another key, and as soon as someone get cornered into signing an attacker related key, the attacker can cross sign everything. To mitigate that, we can add revocation, should the problem arise, but having eternal key for a given origin is way easier to support. If there is any issue with a given network, we can anyway easily create a new one, with newly created key. Having a short lived voting group is pretty fit to the physical use of voting, such as during a meeting or a paraoïd group of friend.~~
 
 ## Background
 We will use the same infrastructure of message distribution as the one used in Peerster, so the course’s gossip algorithm. 
@@ -45,10 +46,7 @@ We will use the same infrastructure of message distribution as the one used in P
 
 ### Linkable Ring Signature 
 
-Linkable ring signatures are a type of group signature that allow any
-member of a group to produce a signature on behalf of the group without
-revealing his identity. The property of linkability provides the signature
-verifier with a simple method of detecting whether a signature has been used more than once. The only requirement for this scheme is an existing public key infrastructure.
+Linkable ring signatures are a type of group signature that allow any member of a group to produce a signature on behalf of the group without revealing his identity. The property of linkability provides the signature verifier with a simple method of detecting whether a signature has been used more than once. The only requirement for this scheme is an existing public key infrastructure.
 
 ## Design and Architecture
 
@@ -57,6 +55,7 @@ verifier with a simple method of detecting whether a signature has been used mor
 In the following we will shortly outline the voting protocol step-by-step. We will use the Peerster network as an underlying structure on which we will build the voting functionality.
 
 **MODIFY**
+
 ### Round 1:
 1. A peer starts a poll by setting up the QUESTION, VOTE_OPTIONS and TIME_TO_VOTE (which is defined by stating the starting time and duration of the poll), sign the poll and gossip it to all known peers
 2. Upon receipt of a poll that I have not seen before (check by storing the vote ID = Key{originPeer, seqNr}), check the integrity of the poll by checking the signature and, if correct, forward it to all known peers except the one from whom it was received
@@ -136,7 +135,7 @@ The possible attacks could be the following behaviors implemented in a Peerster 
 Always gossip two different contradicting votes for each question proposed
 Change the content of a received vote and forward it
 Create a fake vote pretending to be another node
-We can try every message with a valid signature but a not trusted one
+~~We can try every message with a valid signature but a not trusted one~~
 We can replay every message to see if the protocol survive it (it should)
 
 The time requirement for a full voting from zero with N nodes should be
