@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"encoding/json"
 	"strings"
 	"fmt"
 )
@@ -139,9 +138,9 @@ func apiStart(gossiper *Gossiper, uiPort string) {
 	r.HandleFunc("/vote", apiGetPollResults(fgossiper)).Methods("GET")
 	r.HandleFunc("/vote", apiVoteForPoll(fgossiper)).Methods("POST")
 
-  r.HandleFunc("/poll", apiNewPoll(gossiper)).Methods("PUT")
+	r.HandleFunc("/poll", apiNewPoll(gossiper)).Methods("PUT")
 
-  r.Handle("/", http.FileServer(http.Dir(".")))
+	r.Handle("/", http.FileServer(http.Dir(".")))
 	http.Handle("/", r)
 
 	http.ListenAndServe(":"+uiPort, nil)
