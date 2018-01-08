@@ -68,6 +68,8 @@ type RunningPollWriter struct {
 	Votes           chan<- Vote
 }
 
+var curve elliptic.Curve
+
 func (s RunningPollWriter) Send(pkg PollPacket) {
 
 	if pkg.Poll != nil {
