@@ -53,7 +53,7 @@ func TestOpinions(t *testing.T) {
 	opinionsC.Suspect(peerB)
 	opinionsC.Trust(peerC)
 
-	listOpinions := make([]RepOpinions,0)
+	listOpinions := make([]RepOpinions, 0)
 	listOpinions = append(listOpinions, opinionsA)
 	listOpinions = append(listOpinions, opinionsB)
 	listOpinions = append(listOpinions, opinionsC)

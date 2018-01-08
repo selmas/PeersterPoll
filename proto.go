@@ -1,19 +1,18 @@
 package pollparty
 
 import (
+	"crypto/ecdsa"
 	"crypto/sha256"
-	"errors"
 	"log"
+	"math/big"
 	"math/rand"
 	"strconv"
 	"strings"
 	"time"
-	"math/big"
-	"crypto/ecdsa"
 )
 
 type PollKey struct {
-	Origin *ecdsa.PublicKey
+	Origin *ecdsa.PublicKey // FIXME change it to big.Int*2
 	ID     uint64
 }
 
@@ -40,8 +39,8 @@ func PollKeyFromString(packed string) (PollKey, error) {
 	if err != nil {
 		return ret, err
 	}
-	x, _ := new(big.Int).SetString(splitted[0],10)
-	y, _ :=	new(big.Int).SetString(splitted[1],10)
+	x, _ := new(big.Int).SetString(splitted[0], 10)
+	y, _ := new(big.Int).SetString(splitted[1], 10)
 	ret = PollKey{
 		Origin: &ecdsa.PublicKey{Curve: curve, X: x, Y: y},
 		ID:     id,
@@ -82,33 +81,6 @@ type Commitment struct {
 
 func (msg Commitment) Check() error {
 	return nil
-}
-
-func (msg Commitment) ToWire() CommitmentWire {
-	return CommitmentWire{
-		Hash: msg.Hash[:],
-	}
-}
-
-// used only on the network because protobuf lib fail to encode fixed size array
-type CommitmentWire struct {
-	Hash []byte
-}
-
-func (msg CommitmentWire) Check() error {
-	return nil // TODO check hash and salt size
-}
-
-func (msg CommitmentWire) ToBase() (Commitment, error) {
-	var c Commitment
-
-	if len(msg.Hash) != sha256.Size {
-		return c, errors.New("invalid hash size")
-	}
-
-	copy(c.Hash[:], msg.Hash)
-
-	return c, nil
 }
 
 func NewCommitment(answer string) Commitment {
@@ -157,34 +129,6 @@ type Vote struct {
 	Option string
 }
 
-func (msg Vote) ToWire() VoteWire {
-	return VoteWire{
-		Salt:   msg.Salt[:],
-		Option: msg.Option,
-	}
-}
-
-type VoteWire struct {
-	Salt   []byte
-	Option string
-}
-
-func (msg VoteWire) Check() error {
-	return nil
-}
-
-func (msg VoteWire) ToBase() (Vote, error) {
-	var v Vote
-
-	if len(msg.Salt) != SaltSize {
-		return v, errors.New("invalid salt size")
-	}
-
-	copy(v.Salt[:], msg.Salt)
-
-	return v, nil
-}
-
 type PollPacket struct {
 	ID              PollKey
 	Poll            *Poll
@@ -193,122 +137,17 @@ type PollPacket struct {
 	Vote            *Vote
 }
 
-func (msg PollPacket) ToWire() PollPacketWire {
-	var c *CommitmentWire = nil
-	if msg.Commitment != nil {
-		wired := msg.Commitment.ToWire()
-		c = &wired
-	}
-
-	var v *VoteWire = nil
-	if msg.Vote != nil {
-		wired := msg.Vote.ToWire()
-		v = &wired
-	}
-
-	return PollPacketWire{
-		ID:              msg.ID,
-		Poll:            msg.Poll,
-		Commitment:      c,
-		PollCommitments: msg.PollCommitments,
-		Vote:            v,
-	}
-}
-
-type PollPacketWire struct {
-	ID              PollKey
-	Poll            *Poll
-	Commitment      *CommitmentWire
-	PollCommitments *PollCommitments
-	Vote            *VoteWire
-}
-
-func (msg PollPacketWire) ToBase() (PollPacket, error) {
-	const head = "GossipPacketWire: "
-
-	ret := PollPacket{
-		ID:              msg.ID,
-		Poll:            msg.Poll,
-		PollCommitments: msg.PollCommitments,
-	}
-
-	var c *Commitment
-	if msg.Commitment != nil {
-		wired, err := msg.Commitment.ToBase()
-		if err != nil {
-			return ret, errors.New(head + err.Error())
-		}
-		c = &wired
-	}
-
-	var v *Vote
-	if msg.Vote != nil {
-		wired, err := msg.Vote.ToBase()
-		if err != nil {
-			return ret, errors.New(head + err.Error())
-		}
-		v = &wired
-	}
-
-	ret.Commitment = c
-	ret.Vote = v
-
-	return ret, nil
-}
-
-func (pkg PollPacketWire) Check() error {
-	var nilCount uint = 0
-	var err error = nil
-
-	if pkg.Poll != nil {
-		nilCount++
-		err = pkg.Poll.Check()
-	}
-
-	if pkg.Commitment != nil {
-		nilCount++
-		err = pkg.Commitment.Check()
-	}
-
-	if pkg.PollCommitments != nil {
-		nilCount++
-		err = pkg.PollCommitments.Check()
-	}
-
-	if pkg.Vote != nil {
-		nilCount++
-		err = pkg.PollCommitments.Check()
-	}
-
-	if err != nil {
-		return errors.New("PollPacketWire: " + err.Error())
-	}
-	if nilCount > 1 {
-		return errors.New("too much fields defined")
-	} else if nilCount == 0 {
-		return errors.New("no field defined")
-	}
-
-	return nil
-}
+type RingKey string // TODO use corrcet type
 
 // TODO warn if asked for same key in separated round -> bad rep
 type StatusPacket struct {
-	Polls            []PollKey                // may be found via forwarding
-	Commitments      map[PollKey][]Commitment // so we can fetch the missing commitments
-	PollsCommitments []PollKey                // there is only one Tags
-	Votes            map[PollKey][]Vote       // again, so we can fetch the missing votes
+	Infos map[PollKey]PollInfo // TODO move PollInfo here, split it as needed
 }
 
-func (pkg StatusPacket) Check() error {
-	for _, poll := range pkg.Polls {
-		err := poll.Check()
-		if err != nil {
-			return errors.New("StatusPacket: " + err.Error())
-		}
-	}
-
-	return nil
+type GossipPacket struct {
+	Poll      *PollPacket
+	Signature *Signature
+	Status    *StatusPacket
 }
 
 type EllipticCurveSignature struct {
@@ -319,74 +158,4 @@ type EllipticCurveSignature struct {
 type Signature struct {
 	linkableRingSig  *LinkableRingSignature
 	ellipticCurveSig *EllipticCurveSignature
-}
-
-type GossipPacket struct {
-	Poll      *PollPacket
-	Signature *Signature
-	Status    *StatusPacket
-}
-
-func (msg GossipPacket) ToWire() GossipPacketWire {
-	var wire *PollPacketWire = nil
-	if msg.Poll != nil {
-		wired := msg.Poll.ToWire()
-		wire = &wired
-	}
-	return GossipPacketWire{
-		Poll:   wire,
-		Signature: msg.Signature,
-		Status: msg.Status,
-	}
-}
-
-
-type GossipPacketWire struct {
-	Poll   *PollPacketWire
-	Signature *Signature
-	Status *StatusPacket
-}
-
-func (msg GossipPacketWire) ToBase() (GossipPacket, error) {
-	ret := GossipPacket{
-		Status: msg.Status,
-	}
-
-	if msg.Poll != nil {
-		wire, err := msg.Poll.ToBase()
-		if err != nil {
-			return ret, errors.New("GossipPacketWire: " + err.Error())
-		}
-		ret.Poll = &wire
-	}
-
-	return ret, nil
-}
-
-func (pkg GossipPacketWire) Check() error {
-	var nilCount uint = 0
-	var err error = nil
-	const head string = "GossipPacket: "
-
-	if pkg.Poll != nil {
-		nilCount++
-		err = pkg.Poll.Check()
-	}
-
-	if pkg.Status != nil {
-		nilCount++
-		err = pkg.Status.Check()
-	}
-
-	if nilCount > 1 {
-		return errors.New(head + "too much fields defined")
-	} else if nilCount == 0 {
-		return errors.New(head + "no field defined")
-	}
-
-	if err != nil {
-		return errors.New(head + err.Error())
-	}
-
-	return nil
 }

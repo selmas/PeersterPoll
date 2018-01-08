@@ -1,10 +1,10 @@
 package pollparty
 
 import (
-	"time"
-	"crypto/rand"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"math/big"
+	"time"
 )
 
 type PoolPacketHandler func(PollKey, RunningPollReader)
@@ -34,8 +34,7 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 		if !ok {
 			return
 		}
-		storeParticipants(g,id,participants)
-
+		storeParticipants(g, id, participants)
 
 		position, ok := containsKey(participants, tmpKeyPair.PublicKey)
 		if !ok {
@@ -60,7 +59,6 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 			Salt:   [20]byte{}, // TODO empty salt, nice
 			Option: option,
 		}, participants, tmpKeyPair, position)
-
 
 		// TODO save to gossiper
 		// TODO wait for timeout or to receive all votes
@@ -92,7 +90,7 @@ func MasterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 			return
 		}
 
-		g.SendPoll(id, poll, *g)
+		g.SendPoll(id, poll)
 
 		var commits []Commitment
 
@@ -109,7 +107,7 @@ func MasterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 
 		g.SendPollCommitments(id, PollCommitments{
 			Commitments: commits,
-		}, *g)
+		})
 
 		//votes := <-r.Votes // TODO bad rep
 	}

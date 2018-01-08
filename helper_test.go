@@ -1,18 +1,18 @@
 package pollparty
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	crypto "crypto/rand"
+	"encoding/json"
+	"fmt"
+	"log"
+	"sync"
 	"testing"
 	"time"
-	"crypto/ecdsa"
-	crypto "crypto/rand"
-	"crypto/elliptic"
-	"sync"
-	"fmt"
-	"encoding/json"
-	"log"
 )
 
-func TestValidECSignature(t *testing.T){
+func TestValidECSignature(t *testing.T) {
 	g := DummyGossiper()
 	pkg := PollPacket{
 		ID:   PollKey{&g.KeyPair.PublicKey, uint64(0)},
@@ -30,16 +30,16 @@ func TestValidECSignature(t *testing.T){
 		Status:    nil,
 	}
 
-	if !signatureValid(msg,g) {
+	if !signatureValid(msg, g) {
 		t.Errorf("Cannot verify generated signature, \ns: %d\nr: %d", sig.ellipticCurveSig.s,
 			sig.ellipticCurveSig.r)
 	}
 }
 
-func TestValidLinkableRingSignature(t *testing.T){
+func TestValidLinkableRingSignature(t *testing.T) {
 	g := DummyGossiper()
 	poll := PollPacket{
-		ID:   PollKey{&g.KeyPair.PublicKey, uint64(0)},
+		ID:         PollKey{&g.KeyPair.PublicKey, uint64(0)},
 		Commitment: &Commitment{},
 	}
 
@@ -63,7 +63,7 @@ func TestValidLinkableRingSignature(t *testing.T){
 		Status:    nil,
 	}
 
-	if !signatureValid(msg,g) {
+	if !signatureValid(msg, g) {
 		t.Errorf("Cannot verify generated linkable ring signature")
 	}
 }
@@ -89,9 +89,9 @@ func DummyGossiper() Gossiper {
 
 func DummyPoll() *Poll {
 	return &Poll{
-		Question:"Do you like dogs?",
-		Options:[]string{"Yes", "No"},
-		StartTime:time.Now(),
-		Duration:time.Hour,
+		Question:  "Do you like dogs?",
+		Options:   []string{"Yes", "No"},
+		StartTime: time.Now(),
+		Duration:  time.Hour,
 	}
 }

@@ -1,15 +1,15 @@
 package pollparty
 
 import (
-	"testing"
-	"crypto/elliptic"
-	"math/big"
-	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
 	"errors"
+	"math/big"
+	"testing"
 )
 
-func TestMapToPointDeterministic(t  *testing.T){
+func TestMapToPointDeterministic(t *testing.T) {
 	curve = elliptic.P256()
 
 	input := []byte("Test input")
@@ -18,13 +18,13 @@ func TestMapToPointDeterministic(t  *testing.T){
 	X2, Y2 := mapToPoint(input)
 
 	if X1.Cmp(X2) != 0 || Y1.Cmp(Y2) != 0 {
-		t.Errorf("Mapped same input to different points, " +
+		t.Errorf("Mapped same input to different points, "+
 			"\n X1 = %d \n X2 = %d \n Y1 = %d \n Y2 = %d", X1,
 			X2, Y1, Y2)
 	}
 }
 
-func TestDifferentInputMapsToDifferentPoints(t  *testing.T){
+func TestDifferentInputMapsToDifferentPoints(t *testing.T) {
 	curve = elliptic.P256()
 
 	input1 := []byte("Test input 1")
@@ -34,17 +34,17 @@ func TestDifferentInputMapsToDifferentPoints(t  *testing.T){
 	X2, Y2 := mapToPoint(input2)
 
 	if X1.Cmp(X2) == 0 && Y1.Cmp(Y2) == 0 {
-		t.Errorf("Mapped different input to same point, got:\n X = %d \n tag = %d ", X1,Y1)
+		t.Errorf("Mapped different input to same point, got:\n X = %d \n tag = %d ", X1, Y1)
 	}
 }
 
-func TestMapToPointReturnsPointOnCurve(t  *testing.T)  {
+func TestMapToPointReturnsPointOnCurve(t *testing.T) {
 	curve = elliptic.P256()
 
 	input := []byte("Test input")
 	X1, Y1 := mapToPoint(input)
 
-	if !curve.IsOnCurve(X1,Y1) {
+	if !curve.IsOnCurve(X1, Y1) {
 		t.Errorf("Point not on curve, got:\n X = %d \n tag = %d", X1, Y1)
 	}
 }
@@ -99,30 +99,30 @@ func TestMapToPointReturnsPointOnCurve(t  *testing.T)  {
 	}
 }*/
 
-func TestVerifyGeneratedSignature(t *testing.T)  {
+func TestVerifyGeneratedSignature(t *testing.T) {
 	gossiper := DummyGossiper()
 
 	msg := []byte("Test input")
 
 	numPubKey := 4
-	for pos := 0; pos < numPubKey; pos++  {
-		L := DummyPublicKeyArray(gossiper,pos,numPubKey)
+	for pos := 0; pos < numPubKey; pos++ {
+		L := DummyPublicKeyArray(gossiper, pos, numPubKey)
 		lrs := linkableRingSignature(msg, L, &gossiper.KeyPair, pos)
 
 		if !verifySig(lrs, L) {
-			t.Errorf("Unable to verify the generated signature, public key at position %d",pos)
+			t.Errorf("Unable to verify the generated signature, public key at position %d", pos)
 		}
 	}
 }
 
-func TestVerifyInvalidSignature(t *testing.T)  {
+func TestVerifyInvalidSignature(t *testing.T) {
 	gossiper := DummyGossiper()
 
 	msg := []byte("Test input")
 
 	pos := 3
 	numPubKey := 4
-	L := DummyPublicKeyArray(gossiper,pos,numPubKey)
+	L := DummyPublicKeyArray(gossiper, pos, numPubKey)
 
 	lrs := linkableRingSignature(msg, L, &gossiper.KeyPair, pos)
 	lrs.s[0] = lrs.s[1] // messing with some values
@@ -143,7 +143,7 @@ func initTwoDimArray(dx, dy int) [][]*big.Int {
 
 func DummyPublicKeyArray(g Gossiper, pos int, numPubKey int) [][]*big.Int {
 	L := initTwoDimArray(2, numPubKey)
-	for i:=0; i<numPubKey; i++ {
+	for i := 0; i < numPubKey; i++ {
 		if i == pos {
 			L[pos][0] = g.KeyPair.X
 			L[pos][1] = g.KeyPair.Y
