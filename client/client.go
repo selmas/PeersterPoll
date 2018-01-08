@@ -19,7 +19,7 @@ func (s Settings) getUrl(post string) string {
 	return "http://localhost:" + strconv.FormatUint(s.Port, 10) + "/" + post
 }
 
-func propose(s Settings, args []string) {
+func poll_new(s Settings, args []string) {
 	url := s.getUrl("poll")
 	// TODO hardcoded for now
 	msg := pkg.Poll{
@@ -38,11 +38,27 @@ func propose(s Settings, args []string) {
 		log.Fatal(err)
 	}
 
-	resp, err := http.NewRequest("PUT", url, bytes.NewReader(json))
+	var client http.Client
+	req, err := http.NewRequest("PUT", url, bytes.NewReader(json))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatal(err)
 	}
 	resp.Body.Close()
+}
+
+func poll(s Settings, args []string) {
+	action := args[0]
+	switch action {
+	case "new":
+		poll_new(s, args[1:])
+	default:
+		panic("unkown poll action: " + action)
+	}
 }
 
 func main() {
@@ -57,7 +73,9 @@ func main() {
 	action := args[0]
 
 	switch action {
-	case "propose":
-		propose(s, args[1:])
+	case "poll":
+		poll(s, args[1:])
+	default:
+		panic("unkown action: " + action)
 	}
 }

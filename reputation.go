@@ -27,21 +27,8 @@ func (opinions RepOpinions) hasInvalidOpinion() bool {
 	return false
 }
 
-// TODO remove the map because we won't be able to associate each opinion with its peer anymore
-// to store a peer's opinions and associate it with the peer
-type OpinionsMap map[string]RepOpinions
-
-func (opinions OpinionsMap) Add(peer string, opn RepOpinions) {
-	_, exists := opinions[peer]
-
-	// if a peer tries to send its opinion two times to manipulate reputations
-	// its opinion is not taken into account at all
-	if exists {
-		delete(opinions, peer)
-	} else {
-		opinions[peer] = opn
-	}
-}
+// TODO Do not forget to make sure that if two different received opinions are signed with the same key,
+// none of those two should be taken into account
 
 // Reputation ------------------------------------------------------------------------------------
 
@@ -70,7 +57,7 @@ They will all be added and this will update the reputation table.
 Reputations above 0 are not allowed so after adding everything,
 all the reputations above 0 are set to 0.
 */
-func (repTable ReputationTable) AddReputations(allOpinions OpinionsMap) {
+func (repTable ReputationTable) AddReputations(allOpinions []RepOpinions) {
 	//TODO set threshold according to number of peers that gave opinion?
 
 	for _, peerOpinions := range allOpinions {
