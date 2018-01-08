@@ -20,9 +20,9 @@ import (
 
 type ShareablePollInfo struct {
 	Poll         *Poll
+	Participants [][]*big.Int
 	Commitments  []Commitment
 	Votes        []Vote
-	Participants [][]*big.Int
 }
 
 type PollInfo struct {
@@ -442,13 +442,19 @@ func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *Signature, fromPeer *net
 	}
 }
 
-func getStatus(gossiper *Gossiper) StatusPacket {
-	gossiper.Polls.Lock()
-	defer gossiper.Polls.Unlock()
+func getStatus(g *Gossiper) StatusPacket {
+	g.Polls.Lock()
+	defer g.Polls.Unlock()
 
-	println("empty status") // TODO
+	infos := make(map[PollKey]ShareablePollInfo)
 
-	return StatusPacket{}
+	for id, info := range g.Polls.m {
+		infos[id] = info.ShareablePollInfo
+	}
+
+	return StatusPacket{
+		Infos: infos,
+	}
 }
 
 // Todo: how to properly use mapset.Set ???

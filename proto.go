@@ -150,11 +150,9 @@ type PollPacket struct {
 	Vote            *Vote
 }
 
-type RingKey string // TODO use corrcet type
-
 // TODO warn if asked for same key in separated round -> bad rep
 type StatusPacket struct {
-	Infos map[PollKey]ShareablePollInfo // TODO move PollInfo here, split it as needed
+	Infos map[PollKey]ShareablePollInfo
 }
 
 type GossipPacket struct {
