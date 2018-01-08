@@ -1,19 +1,16 @@
-package main
+package pollparty
 
 import (
 	"fmt"
 	"net"
-	"strconv"
-	"strings"
 )
 
-func printRumor(gossiper *Gossiper, clientAddr *net.UDPAddr, msg *RumorMessage) {
+func printPollPacket(gossiper *Gossiper, clientAddr *net.UDPAddr, pkg PollPacket) {
 	fmt.Println(
-		"Poll origin", msg.pollKey.PollOrigin,
+		"Poll ", pkg.ID.String(),
 		"from", clientAddr.String(),
-		"ID", msg.pollKey.PollID,
-		"Question", msg.pollQuestion.Question,
-		"with options", strings.Join(msg.pollQuestion.VoteOptions, ","),
+		// TODO "Question", pkg.pollQuestion.Question,
+		//"with options", strings.Join(msg.pollQuestion.VoteOptions, ","),
 	)
 	printPeers(gossiper)
 }
@@ -22,11 +19,11 @@ func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *StatusPacket) {
 	var str string
 	str += "STATUS from " + addr.String()
 
-	for _, s := range msg.Want {
+	/* TODO for _, s := range msg.Want {
 		str += " poll origin " + s.key.PollOrigin
 		str += " ID " + strconv.FormatUint(uint64(s.key.PollID), 10)
 		// todo: add meaningful output for status
-	}
+	}*/
 	fmt.Println(str)
 	printPeers(gossiper)
 }

@@ -1,12 +1,12 @@
 set -eu
 set -o pipefail
 
-export PATH="$PATH:$PWD:$PWD/client"
+export PATH="$PATH:$PWD:$PWD/client:$PWD/server"
 
 wait_port_open() {
 	local port=$1
 
-	while ! netstat -l | grep -q :$port
+	while ! netstat -l | grep :$port > /dev/null
 	do
 		sleep 0.2
 	done
@@ -19,7 +19,7 @@ start_server() {
 	shift 3
 	local peers="$(echo "$*" | tr ' ' _)"
 
-	Peerster -name "$name" -UIPort "$uiPort" -gossipAddr "127.0.0.1:$gossipPort" -peers "$peers" 2>&1 > "$name.log" &
+	server -name "$name" -UIPort "$uiPort" -gossipAddr "127.0.0.1:$gossipPort" -peers "$peers" 2>&1 > "$name.log" &
 
 	wait_port_open $uiPort
 	wait_port_open $gossipPort
@@ -36,17 +36,23 @@ build_all() {
 	done
 }
 
+new_poll() {
+	local port=$1
+
+	client -UIPort $1 propose
+}
+
 log_check() {
 	local name=$1
 	local pattern=$2
 
-	grep -q "$pattern" "$name.log"
+	grep "$pattern" "$name.log"
 }
 
 cleanup() {
 	rm -rf tmp.* chunk hw3 *.log
 
-	pkill -x Peerster
+	pkill -x server
 	wait 2>/dev/null || :
 }
 trap 'cleanup' EXIT
