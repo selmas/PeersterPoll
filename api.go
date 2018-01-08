@@ -123,6 +123,30 @@ func apiGetPollResults(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 	}
 }
 
+func apiGetPolls(g *Gossiper) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		g.Polls.RLock()
+		defer g.Polls.RLock()
+
+		infos := make([]string, 0)
+		for id, _ := range g.Polls.m {
+			// TODO check nil
+			infos = append(infos, id.String())
+		}
+
+		bytes, err := json.Marshal(infos)
+		if err != nil {
+			log.Printf("unable to encode as json")
+			return
+		}
+
+		_, err = w.Write(bytes)
+		if err != nil {
+			log.Printf("unable to send answer")
+		}
+	}
+}
+
 func createFakePollResults(options []string) map[string]int {
 	results := make(map[string]int)
 
@@ -137,6 +161,7 @@ func ApiStart(g *Gossiper, uiPort string) {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/poll", apiStartPoll(g)).Methods("POST")
+	r.HandleFunc("/poll", apiGetPolls(g)).Methods("GET")
 	r.HandleFunc("/poll/{id}", apiGetPollOptions(g)).Methods("GET")
 
 	r.HandleFunc("/vote/{id}", apiGetPollResults(g)).Methods("GET")
