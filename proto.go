@@ -49,14 +49,11 @@ func PollKeyFromString(packed string) (PollKey, error) {
 	return ret, nil
 }
 
-type MasterSignature []byte
-
 type Poll struct {
 	Question  string
 	Options   []string
 	StartTime time.Time
 	Duration  time.Duration // After duration has passed, can no longer participate in votes
-	Signature MasterSignature
 }
 
 func (p Poll) IsTooLate() bool {

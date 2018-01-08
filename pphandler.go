@@ -81,7 +81,7 @@ func MasterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 			return
 		}
 
-		g.SendPoll(id, poll, g)
+		g.SendPoll(id, poll, *g)
 
 		var commits []Commitment
 
