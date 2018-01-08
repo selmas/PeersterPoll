@@ -36,6 +36,12 @@ build_all() {
 	done
 }
 
+new_key() {
+	local origin=$1
+
+	client key new "$origin"
+}
+
 new_poll() {
 	local port=$1
 
@@ -50,7 +56,7 @@ log_check() {
 }
 
 cleanup() {
-	rm -rf tmp.* chunk hw3 *.log
+	rm -rf *.log *.key keys
 
 	pkill -x server
 	wait 2>/dev/null || :
