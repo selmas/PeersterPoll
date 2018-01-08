@@ -1,12 +1,11 @@
-package main
+package pollparty
 
 import (
-	"flag"
 	"log"
 	"math/rand"
 	"net"
-	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"crypto/ecdsa"
@@ -72,7 +71,12 @@ type RunningPollWriter struct {
 func (s RunningPollWriter) Send(pkg PollPacket) {
 
 	if pkg.Poll != nil {
-		s.Poll <- *pkg.Poll
+		poll := *pkg.Poll
+		if poll.IsTooLate() {
+			log.Println("poll came in too late")
+		} else {
+			s.Poll <- poll
+		}
 		close(s.Poll)
 	}
 
@@ -165,9 +169,10 @@ type RoutingTable struct {
 }
 
 type Gossiper struct {
+	sync.RWMutex // TODO use everywhere (for id change also)
 	Name         string
+	LastID       uint32
 	KeyPair      *ecdsa.PrivateKey
-	lastPollID   uint32
 	Peers        PeerSet
 	RunningPolls RunningPollSet
 	Polls        PollSet
@@ -223,9 +228,19 @@ func NewGossiper(name string, server *Server) (*Gossiper, error) {
 	}, nil
 }
 
+func NewPollKey(g *Gossiper) PollKey {
+	g.Lock()
+	defer g.Unlock()
+
+	return PollKey{
+		ID:     uint(atomic.AddUint32(&g.LastID, 1)),
+		Origin: g.Name,
+	}
+}
+
 type Dispatcher func(*net.UDPAddr, *GossipPacket)
 
-func runServer(gossiper *Gossiper, server *Server, dispatcher Dispatcher) {
+func RunServer(gossiper *Gossiper, server *Server, dispatcher Dispatcher) {
 	buf := make([]byte, 1024)
 
 	for {
@@ -276,10 +291,28 @@ func writeMsgToUDP(server *Server, peer *net.UDPAddr, poll *PollPacket, status *
 	server.Conn.WriteToUDP(toSend, peer)
 }
 
+func (g *Gossiper) SendPoll(id PollKey, msg Poll) {
+	pkg := PollPacket{
+		ID:   id,
+		Poll: &msg,
+	}
+
+	g.SendPollPacket(&pkg, nil)
+}
+
 func (g *Gossiper) SendCommitment(id PollKey, msg Commitment) {
 	pkg := PollPacket{
 		ID:         id,
 		Commitment: &msg,
+	}
+
+	g.SendPollPacket(&pkg, nil)
+}
+
+func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments) {
+	pkg := PollPacket{
+		ID:              id,
+		PollCommitments: &msg,
 	}
 
 	g.SendPollPacket(&pkg, nil)
@@ -361,7 +394,7 @@ func syncStatus(gossiper *Gossiper, peer *net.UDPAddr, s *StatusPacket) {
 	*/
 }
 
-func dispatcherPeersterMessage(g *Gossiper) Dispatcher {
+func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 	return func(fromPeer *net.UDPAddr, pkg *GossipPacket) {
 		err := pkg.Check()
 		if err != nil {
@@ -405,7 +438,7 @@ func parseAddr(str string) *net.UDPAddr {
 	return addr
 }
 
-func antiEntropyGossip(gossiper *Gossiper) {
+func AntiEntropyGossip(gossiper *Gossiper) {
 	ticker := time.NewTicker(time.Second)
 
 	for {
@@ -420,31 +453,4 @@ func antiEntropyGossip(gossiper *Gossiper) {
 		status := getStatus(gossiper)
 		writeMsgToUDP(gossiper.Server, peer, nil, &status)
 	}
-}
-
-func main() {
-	uiPort := flag.String("UIPort", "10000", "port for the client to connect")
-	gossipAddr := flag.String("gossipAddr", "127.0.0.1:5000", "port to connect the gossiper server")
-	name := flag.String("name", "nodeA", "server identifier")
-	peersStr := flag.String("peers", "127.0.0.1:5001_10.1.1.7:5002", "underscore separated list of peers")
-	flag.Parse()
-
-	gossiper, err := NewGossiper(*name, NewServer(*gossipAddr))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer gossiper.Server.Conn.Close()
-
-	for _, peer := range strings.Split(*peersStr, "_") {
-		if peer == "" {
-			continue
-		}
-
-		gossiper.Peers.Set[peer] = true
-	}
-
-	// one should stay main thread'ed to avoid exiting
-	go runServer(gossiper, gossiper.Server, dispatcherPeersterMessage(gossiper))
-	go antiEntropyGossip(gossiper)
-	apiStart(gossiper, *uiPort)
 }

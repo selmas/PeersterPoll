@@ -1,6 +1,7 @@
-package main
+package pollparty
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -25,10 +26,35 @@ func apiChangeId(gossiper *Gossiper) func(http.ResponseWriter, *http.Request) {
 	}
 }
 
-func apiStart(gossiper *Gossiper, uiPort string) {
+func apiNewPoll(g *Gossiper) func(http.ResponseWriter, *http.Request) {
+	buf := make([]byte, 1024)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		var poll Poll
+
+		size, _ := r.Body.Read(buf)
+		err := json.Unmarshal(buf[:size], &poll)
+		if err != nil {
+			log.Println("unable to decode as Poll")
+			return
+		}
+
+		log.Println("got new poll")
+
+		id := NewPollKey(g)
+		g.RunningPolls.Add(id, MasterHandler(g))
+		g.RunningPolls.Send(id, PollPacket{
+			ID:   id,
+			Poll: &poll,
+		})
+	}
+}
+
+func ApiStart(gossiper *Gossiper, uiPort string) {
 	r := mux.NewRouter()
 	r.HandleFunc("/id", apiGetId(gossiper)).Methods("GET")
 	r.HandleFunc("/id", apiChangeId(gossiper)).Methods("POST")
+	r.HandleFunc("/poll", apiNewPoll(gossiper)).Methods("PUT")
 	r.Handle("/", http.FileServer(http.Dir(".")))
 	http.Handle("/", r)
 

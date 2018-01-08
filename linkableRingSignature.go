@@ -1,4 +1,4 @@
-package main
+package pollparty
 
 import (
 	"math/big"
