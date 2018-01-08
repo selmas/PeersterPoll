@@ -233,18 +233,26 @@ func (msg PollPacketWire) ToBase() (PollPacket, error) {
 		PollCommitments: msg.PollCommitments,
 	}
 
-	c, err := msg.Commitment.ToBase()
-	if err != nil {
-		return ret, errors.New(head + err.Error())
+	var c *Commitment
+	if msg.Commitment != nil {
+		wired, err := msg.Commitment.ToBase()
+		if err != nil {
+			return ret, errors.New(head + err.Error())
+		}
+		c = &wired
 	}
 
-	v, err := msg.Vote.ToBase()
-	if err != nil {
-		return ret, errors.New(head + err.Error())
+	var v *Vote
+	if msg.Vote != nil {
+		wired, err := msg.Vote.ToBase()
+		if err != nil {
+			return ret, errors.New(head + err.Error())
+		}
+		v = &wired
 	}
 
-	ret.Commitment = &c
-	ret.Vote = &v
+	ret.Commitment = c
+	ret.Vote = v
 
 	return ret, nil
 }
