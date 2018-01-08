@@ -16,6 +16,8 @@ import (
 	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
 	"math/big"
 	"encoding/json"
+	"crypto/sha256"
+	"hash"
 )
 
 type Server struct {
@@ -329,7 +331,7 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	return addr
 }
 
-func writeMsgToUDP(server *Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket, signature *LinkableRingSignature) {
+func writeMsgToUDP(server *Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket, signature *Signature) {
 	msg := GossipPacket{
 		Poll:      poll,
 		Signature: signature,
@@ -345,13 +347,16 @@ func writeMsgToUDP(server *Server, peer *net.UDPAddr, poll *PollPacket, status *
 	server.Conn.WriteToUDP(toSend, peer)
 }
 
-func (g *Gossiper) SendPoll(id PollKey, msg Poll) {
+func (g *Gossiper) SendPoll(id PollKey, msg Poll, gossiper Gossiper) {
 	pkg := PollPacket{
 		ID:   id,
 		Poll: &msg,
 	}
-
-	g.SendPollPacket(&pkg, , nil)
+	sig, err := ecSignPollPacket(pkg, gossiper)
+	if err != nil {
+		return
+	}
+	g.SendPollPacket(&pkg, &sig, nil)
 }
 
 func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey,	pos int) {
@@ -365,17 +370,39 @@ func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*
 		return
 	}
 
-	sig := generateSig(input, participants, tmpKey, pos)
-	g.SendPollPacket(&pkg, &sig,nil)
+	lrs := linkableRingSignature(input, participants, tmpKey, pos)
+	g.SendPollPacket(&pkg, &Signature{&lrs, nil},nil)
 }
 
-func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments) {
+func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments, gossiper Gossiper) {
 	pkg := PollPacket{
 		ID:              id,
 		PollCommitments: &msg,
 	}
 
-	g.SendPollPacket(&pkg, nil)
+	ecsig, err := ecSignPollPacket(pkg, gossiper)
+	if err != nil {
+		return
+	}
+
+	g.SendPollPacket(&pkg, &ecsig,nil)
+}
+
+func ecSignPollPacket(pkg PollPacket, gossiper Gossiper) (Signature, error) {
+	input, err := json.Marshal(pkg)
+	if err != nil {
+		log.Printf("unable to encode as json")
+		return Signature{}, err
+	}
+
+	hash := sha256.New()
+	_, err = hash.Write(input)
+	r, s, err := ecdsa.Sign(crypto.Reader, gossiper.KeyPair, hash.Sum(nil)) // TODO use masterkey for signing
+	if err != nil {
+		log.Printf("error generating elliptic curve signature")
+		return Signature{}, err
+	}
+	return Signature{nil, &EllipticCurveSignature{r,s}}, nil
 }
 
 func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey,	pos int) {
@@ -383,17 +410,18 @@ func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][]*big.Int, tm
 		ID:   id,
 		Vote: &vote,
 	}
+
 	input, err := json.Marshal(pkg)
 	if err != nil {
 		log.Printf("unable to encode as json")
 		return
 	}
 
-	sig := generateSig(input, participants, tmpKey, pos)
-	g.SendPollPacket(&pkg, &sig, nil)
+	lrs := linkableRingSignature(input, participants, tmpKey, pos)
+	g.SendPollPacket(&pkg, &Signature{&lrs,nil}, nil)
 }
 
-func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *LinkableRingSignature, fromPeer *net.UDPAddr) {
+func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *Signature, fromPeer *net.UDPAddr) {
 	for {
 		peer := getRandomPeer(&g.Peers, fromPeer)
 		if peer == nil {

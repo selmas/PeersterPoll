@@ -29,12 +29,12 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 		g.SendRegister(id, tmpKeyPair.PublicKey)
 
 		// TODO return list of participants, type [][]*big.Int
-		particiants, ok := <-r.tmpKeys
+		participants, ok := <-r.tmpKeys
 		if !ok {
 			return
 		}
 
-		position, ok := containsKey(particiants, tmpKeyPair.PublicKey)
+		position, ok := containsKey(participants, tmpKeyPair.PublicKey)
 		if !ok {
 			return
 		}
@@ -81,7 +81,7 @@ func MasterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 			return
 		}
 
-		g.SendPoll(id, poll)
+		g.SendPoll(id, poll, g)
 
 		var commits []Commitment
 
@@ -98,7 +98,7 @@ func MasterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 
 		g.SendPollCommitments(id, PollCommitments{
 			Commitments: commits,
-		})
+		}, *g)
 
 		//votes := <-r.Votes // TODO bad rep
 	}

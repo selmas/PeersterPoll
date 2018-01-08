@@ -49,7 +49,7 @@ func TestMapToPointReturnsPointOnCurve(t  *testing.T)  {
 	}
 }
 
-// Output slice c in method generateSig to run this test
+// Output slice c in method linkableRingSignature to run this test
 /*func TestValidSignature(t *testing.T)  {
 	gossiper := setupGossiper()
 	msg := []byte("Test input")
@@ -69,7 +69,7 @@ func TestMapToPointReturnsPointOnCurve(t  *testing.T)  {
 	L[pos][0] = gossiper.KeyPair.X
 	L[pos][1] = gossiper.KeyPair.Y
 
-	sig, c := generateSig(msg, L, *gossiper, pos)
+	sig, c := linkableRingSignature(msg, L, *gossiper, pos)
 
 	i:= len(sig.s)-1
 
@@ -132,7 +132,7 @@ func TestVerifyGeneratedSignature(t *testing.T)  {
 			}
 		}
 
-		lrs := generateSig(msg, L, *gossiper, pos)
+		lrs := linkableRingSignature(msg, L, *gossiper, pos)
 
 		if !verifySig(lrs, L) {
 			t.Errorf("Unable to verify the generated signature, public key at position %d",pos)
@@ -162,7 +162,7 @@ func TestVerifyInvalidSignature(t *testing.T)  {
 		}
 	}
 
-	lrs := generateSig(msg, L, *gossiper, pos)
+	lrs := linkableRingSignature(msg, L, *gossiper, pos)
 	lrs.s[0] = lrs.s[1] // messing with some values
 
 	if verifySig(lrs, L) {

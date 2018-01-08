@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"crypto/ecdsa"
+	"math/big"
 )
 
 type PollKey struct {
@@ -293,9 +295,19 @@ func (pkg StatusPacket) Check() error {
 	return nil
 }
 
+type EllipticCurveSignature struct {
+	r *big.Int
+	s *big.Int
+}
+
+type Signature struct {
+	linkableRingSig  *LinkableRingSignature
+	ellipticCurveSig *EllipticCurveSignature
+}
+
 type GossipPacket struct {
 	Poll      *PollPacket
-	Signature *LinkableRingSignature
+	Signature *Signature
 	Status    *StatusPacket
 }
 
