@@ -15,13 +15,14 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 	return func(id PollKey, r RunningPollReader) {
 		_ = <-r.Poll // TODO poll not used?
 
-		key, err := ecdsa.GenerateKey(Curve(), rand.Reader) // generates key pair
+		tmpKey, err := ecdsa.GenerateKey(Curve(), rand.Reader) // generates tmpKey pair
 		if err != nil {
 			panic(err)
 		}
 
 		voteKey := VoteKey{
-			key.PublicKey,
+			g.KeyPair.PublicKey,
+			tmpKey.PublicKey,
 		}
 		g.SendVoteKey(id, voteKey)
 
@@ -30,7 +31,7 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 		participants := keys.ToParticipants()
 		g.storeParticipants(id, participants)
 
-		position, ok := containsKey(participants, key.PublicKey)
+		position, ok := containsKey(participants, tmpKey.PublicKey)
 		if !ok {
 			return // we are not part of this vote
 		}
@@ -46,7 +47,7 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 			commit, s := NewCommitment(o)
 			salt <- s
 			option <- o
-			g.SendCommitment(id, commit, participants, key, position)
+			g.SendCommitment(id, commit, participants, tmpKey, position)
 			close(salt)
 			close(option)
 		}()
@@ -60,7 +61,7 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 					g.SendVote(id, Vote{
 						Salt:   <-salt,
 						Option: <-option,
-					}, participants, key, position)
+					}, participants, tmpKey, position)
 				}
 			case vote := <-r.Vote:
 				if len(commits) < len(keys.Keys) {

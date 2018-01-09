@@ -611,6 +611,22 @@ func (g *Gossiper) SignatureValid(pkg GossipPacket) bool {
 			&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
 	}
 
+	if poll.VoteKey != nil {
+		input, err := json.Marshal(poll)
+		if err != nil {
+			log.Printf("unable to encode as json")
+		}
+
+		hash := sha256.New()
+		_, err = hash.Write(input)
+		if err != nil {
+			log.Printf("error generating elliptic curve signature")
+		}
+
+		return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.VoteKey.publicKey, hash.Sum(nil),
+			&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
+	}
+
 	return false
 }
 

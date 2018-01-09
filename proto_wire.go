@@ -489,13 +489,13 @@ type VoteKeyWire struct {
 
 func (msg VoteKey) toWire() VoteKeyWire {
 	return VoteKeyWire{
-		Key: PublicKeyWireFromEcdsa(msg.Key),
+		Key: PublicKeyWireFromEcdsa(msg.publicKey),
 	}
 }
 
 func (msg VoteKeyWire) toBase() VoteKey {
 	return VoteKey{
-		Key: msg.Key.toEcdsa(),
+		publicKey: msg.Key.toEcdsa(),
 	}
 }
 

@@ -122,7 +122,8 @@ func NewCommitment(answer string) (Commitment, [SaltSize]byte) {
 }
 
 type VoteKey struct {
-	Key ecdsa.PublicKey
+	publicKey ecdsa.PublicKey
+	tmpKey    ecdsa.PublicKey
 }
 
 type VoteKeys struct {
@@ -143,8 +144,8 @@ func (msg VoteKeys) ToParticipants() [][2]*big.Int {
 	ret := make([][2]*big.Int, len(msg.Keys))
 
 	for i, k := range msg.Keys {
-		ret[i][0] = k.Key.X
-		ret[i][0] = k.Key.Y
+		ret[i][0] = k.publicKey.X
+		ret[i][0] = k.publicKey.Y
 	}
 
 	return ret
