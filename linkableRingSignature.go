@@ -11,13 +11,13 @@ import (
 
 // msg contains hash of message to get signed
 type LinkableRingSignature struct {
-	msg []byte
-	c0  []byte
-	s   []*big.Int
-	tag [2]*big.Int
+	Message []byte
+	C0      []byte
+	S       []*big.Int
+	Tag     [2]*big.Int
 }
 
-func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) LinkableRingSignature {
+func linkableRingSignature(msg []byte, L [][2]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) LinkableRingSignature {
 	if pos > len(L) || L[pos][0].Cmp(tmpKey.X) != 0 && L[pos][1].Cmp(tmpKey.Y) != 0 {
 		fmt.Println("Linkable ring signature generation failed: public key not in L")
 		return LinkableRingSignature{}
@@ -31,9 +31,9 @@ func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey,
 	}
 
 	Hx, Hy := mapToPoint(pubKeys)
-	n := curve.Params().N
+	n := Curve().Params().N
 
-	tag[0], tag[1] = curve.ScalarMult(Hx, Hy, tmpKey.D.Bytes())
+	tag[0], tag[1] = Curve().ScalarMult(Hx, Hy, tmpKey.D.Bytes())
 
 	u, err := rand.Int(rand.Reader, n)
 	if err != nil {
@@ -44,8 +44,8 @@ func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey,
 	commonPart = append(append(commonPart, tag[0].Bytes()...), tag[1].Bytes()...)
 	commonPart = append(commonPart, msg...)
 
-	uGx, uGy := curve.ScalarBaseMult(u.Bytes())
-	uHx, uHy := curve.ScalarMult(Hx, Hy, u.Bytes())
+	uGx, uGy := Curve().ScalarBaseMult(u.Bytes())
+	uHx, uHy := Curve().ScalarMult(Hx, Hy, u.Bytes())
 
 	hashInput := append(append(commonPart, uGx.Bytes()...), uGy.Bytes()...)
 	hashInput = append(append(hashInput, uHx.Bytes()...), uHy.Bytes()...)
@@ -74,13 +74,13 @@ func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey,
 			fmt.Println("rand.Int failed:", err)
 		}
 
-		siGx, siGy := curve.ScalarBaseMult(s[i].Bytes())
-		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
-		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
+		siGx, siGy := Curve().ScalarBaseMult(s[i].Bytes())
+		ciYix, ciYiy := Curve().ScalarMult(L[i][0], L[i][1], c[i])
+		siGciYix, siGciYiy := Curve().Add(siGx, siGy, ciYix, ciYiy)
 
-		siHx, siHy := curve.ScalarMult(Hx, Hy, s[i].Bytes())
-		ciTagx, ciTagy := curve.ScalarMult(tag[0], tag[1], c[i])
-		siHciTagx, siHciTagy := curve.Add(siHx, siHy, ciTagx, ciTagy)
+		siHx, siHy := Curve().ScalarMult(Hx, Hy, s[i].Bytes())
+		ciTagx, ciTagy := Curve().ScalarMult(tag[0], tag[1], c[i])
+		siHciTagx, siHciTagy := Curve().Add(siHx, siHy, ciTagx, ciTagy)
 
 		hashInput := append(append(commonPart, siGciYix.Bytes()...), siGciYiy.Bytes()...)
 		hashInput = append(append(hashInput, siHciTagx.Bytes()...), siHciTagy.Bytes()...)
@@ -107,13 +107,13 @@ func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey,
 			fmt.Println("rand.Int failed:", err)
 		}
 
-		siGx, siGy := curve.ScalarBaseMult(s[i].Bytes())
-		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
-		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
+		siGx, siGy := Curve().ScalarBaseMult(s[i].Bytes())
+		ciYix, ciYiy := Curve().ScalarMult(L[i][0], L[i][1], c[i])
+		siGciYix, siGciYiy := Curve().Add(siGx, siGy, ciYix, ciYiy)
 
-		siHx, siHy := curve.ScalarMult(Hx, Hy, s[i].Bytes())
-		ciTagx, ciTagy := curve.ScalarMult(tag[0], tag[1], c[i])
-		siHciTagx, siHciTagy := curve.Add(siHx, siHy, ciTagx, ciTagy)
+		siHx, siHy := Curve().ScalarMult(Hx, Hy, s[i].Bytes())
+		ciTagx, ciTagy := Curve().ScalarMult(tag[0], tag[1], c[i])
+		siHciTagx, siHciTagy := Curve().Add(siHx, siHy, ciTagx, ciTagy)
 
 		hashInput := append(append(commonPart, siGciYix.Bytes()...), siGciYiy.Bytes()...)
 		hashInput = append(append(hashInput, siHciTagx.Bytes()...), siHciTagy.Bytes()...)
@@ -139,7 +139,7 @@ func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey,
 	return LinkableRingSignature{msg, c[0], s, tag}
 }
 
-func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool {
+func verifySig(sig LinkableRingSignature, L [][2]*big.Int) bool {
 	var pubKeys []byte
 	for _, keyPair := range L {
 		pubKeys = append(pubKeys, keyPair[0].Bytes()...)
@@ -149,21 +149,21 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool {
 	Hx, Hy := mapToPoint(pubKeys)
 
 	c := make([][]byte, len(L)+1)
-	c[0] = sig.c0
+	c[0] = sig.C0
 
 	// hash(L, Tag, msg, si*G + ci*Yi, si*H + ci*Tag)
 	commonPart := pubKeys
-	commonPart = append(append(commonPart, sig.tag[0].Bytes()...), sig.tag[1].Bytes()...)
-	commonPart = append(commonPart, sig.msg...)
+	commonPart = append(append(commonPart, sig.Tag[0].Bytes()...), sig.Tag[1].Bytes()...)
+	commonPart = append(commonPart, sig.Message...)
 
 	for i := 0; i < len(L); i++ {
-		siGx, siGy := curve.ScalarBaseMult(sig.s[i].Bytes())
-		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
-		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
+		siGx, siGy := Curve().ScalarBaseMult(sig.S[i].Bytes())
+		ciYix, ciYiy := Curve().ScalarMult(L[i][0], L[i][1], c[i])
+		siGciYix, siGciYiy := Curve().Add(siGx, siGy, ciYix, ciYiy)
 
-		siHx, siHy := curve.ScalarMult(Hx, Hy, sig.s[i].Bytes())
-		ciTagx, ciTagy := curve.ScalarMult(sig.tag[0], sig.tag[1], c[i])
-		siHciTagx, siHciTagy := curve.Add(siHx, siHy, ciTagx, ciTagy)
+		siHx, siHy := Curve().ScalarMult(Hx, Hy, sig.S[i].Bytes())
+		ciTagx, ciTagy := Curve().ScalarMult(sig.Tag[0], sig.Tag[1], c[i])
+		siHciTagx, siHciTagy := Curve().Add(siHx, siHy, ciTagx, ciTagy)
 
 		hashInput := append(append(commonPart, siGciYix.Bytes()...), siGciYiy.Bytes()...)
 		hashInput = append(append(hashInput, siHciTagx.Bytes()...), siHciTagy.Bytes()...)
@@ -185,7 +185,7 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool {
 // hashes the input to a point on the curve
 func mapToPoint(input []byte) (x, y *big.Int) {
 	i := 0
-	p := curve.Params().P
+	p := Curve().Params().P
 
 	for {
 		hash := sha256.New()
@@ -206,7 +206,7 @@ func mapToPoint(input []byte) (x, y *big.Int) {
 			threeX.Add(threeX, x)
 
 			beta := new(big.Int).Sub(x3, threeX)
-			beta.Add(beta, curve.Params().B)
+			beta.Add(beta, Curve().Params().B)
 
 			y2 := new(big.Int).Mod(beta, p)
 

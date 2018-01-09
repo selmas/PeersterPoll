@@ -7,79 +7,91 @@ import (
 	"time"
 )
 
+const NetworkConvergeDuration = time.Duration(10) * time.Second
+
 type PoolPacketHandler func(PollKey, RunningPollReader)
 
 func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 	return func(id PollKey, r RunningPollReader) {
-		poll, ok := <-r.Poll
-		if !ok {
-			return
-		}
+		_ = <-r.Poll // TODO poll not used?
 
-		// TODO rumor poll
-
-		// TODO GUI for now, force first choice
-		assert(len(poll.Options) > 0)
-		option := poll.Options[0]
-
-		tmpKeyPair, err := ecdsa.GenerateKey(curve, rand.Reader) // generates key pair
+		key, err := ecdsa.GenerateKey(Curve(), rand.Reader) // generates key pair
 		if err != nil {
-			return
+			panic(err)
 		}
-		//g.SendRegister(id, tmpKeyPair.PublicKey)
 
-		// TODO return list of participants, type [][]*big.Int
-		//participants, ok := <-r.tmpKeys
-		var participants [][]*big.Int // remove again!!! just for testing
+		voteKey := VoteKey{
+			key.PublicKey,
+		}
+		g.SendVoteKey(id, voteKey)
+
+		keys := <-r.VoteKeys
+
+		participants := keys.ToParticipants()
+		g.storeParticipants(id, participants)
+
+		position, ok := containsKey(participants, key.PublicKey)
 		if !ok {
-			return
-		}
-		storeParticipants(g, id, participants)
-
-		position, ok := containsKey(participants, tmpKeyPair.PublicKey)
-		if !ok {
-			return
+			return // we are not part of this vote
 		}
 
-		commit := NewCommitment(option)
-		g.SendCommitment(id, commit, participants, tmpKeyPair, position)
+		commits := make([]Commitment, 0)
+		votes := make([]Vote, 0)
 
-		commits, ok := <-r.PollCommitments
-		if !ok {
-			return
+		salt := make(chan [SaltSize]byte)
+		option := make(chan string)
+
+		go func() {
+			o := <-r.LocalVote
+			commit, s := NewCommitment(o)
+			salt <- s
+			option <- o
+			g.SendCommitment(id, commit, participants, key, position)
+			close(salt)
+			close(option)
+		}()
+
+	Timeout:
+		for {
+			select {
+			case commit := <-r.Commitment:
+				commits = append(commits, commit)
+				if len(commits) == len(keys.Keys) {
+					g.SendVote(id, Vote{
+						Salt:   <-salt,
+						Option: <-option,
+					}, participants, key, position)
+				}
+			case vote := <-r.Vote:
+				if len(commits) < len(keys.Keys) {
+					// TODO ask for status
+				}
+				votes = append(votes, vote)
+			case <-time.After(NetworkConvergeDuration):
+				break Timeout
+			}
 		}
 
-		if !commits.Has(commit) {
-			return // to avoid loading network, we abort here
-		}
-
-		// TODO Block until received all commits or timeout
-
-		g.SendVote(id, Vote{
-			Salt:   [20]byte{}, // TODO empty salt, nice
-			Option: option,
-		}, participants, tmpKeyPair, position)
-
-		// TODO save to gossiper
-		// TODO wait for timeout or to receive all votes
 		// TODO locally compute all votes and display to user -> GUI
 	}
 }
 
-func storeParticipants(g *Gossiper, id PollKey, participants [][]*big.Int) {
+func (g *Gossiper) storeParticipants(id PollKey, participants [][2]*big.Int) {
 	g.Polls.Lock()
-	pollInfos := g.Polls.m[id]
+	defer g.Polls.Unlock()
+
+	pollInfos := g.Polls.m[id.Pack()]
 	pollInfos.Participants = participants
-	g.Polls.m[id] = pollInfos
-	g.Polls.Unlock()
+	g.Polls.m[id.Pack()] = pollInfos
 }
 
-func containsKey(keyArray [][]*big.Int, publicKey ecdsa.PublicKey) (int, bool) {
+func containsKey(keyArray [][2]*big.Int, publicKey ecdsa.PublicKey) (int, bool) {
 	for index, key := range keyArray {
 		if key[0].Cmp(publicKey.X) == 0 && key[1].Cmp(publicKey.Y) == 0 {
 			return index, true
 		}
 	}
+
 	return -1, false
 }
 
@@ -92,23 +104,22 @@ func MasterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 
 		g.SendPoll(id, poll)
 
-		var commits []Commitment
-
+		var keys []VoteKey
 	Timeout:
 		for {
 			select {
-			case commit := <-r.Commitments:
-				commits = append(commits, commit)
+			case k := <-r.VoteKey:
+				keys = append(keys, k)
 				// TODO check others commits -> bad rep
 			case <-time.After(poll.Duration):
 				break Timeout
 			}
 		}
 
-		g.SendPollCommitments(id, PollCommitments{
-			Commitments: commits,
+		g.SendVoteKeys(id, VoteKeys{
+			Keys: keys,
 		})
 
-		//votes := <-r.Votes // TODO bad rep
+		// TODO same handling as VoterHandler
 	}
 }

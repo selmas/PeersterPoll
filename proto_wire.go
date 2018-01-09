@@ -7,34 +7,42 @@ import (
 	"math/big"
 )
 
-type PollKeyWire struct {
-	X  []byte
-	Y  []byte
-	ID uint64
+type PublicKeyWire struct {
+	X []byte
+	Y []byte
 }
 
-func (msg PollKey) ToWire() PollKeyWire {
+func PublicKeyWireFromEcdsa(pk ecdsa.PublicKey) PublicKeyWire {
+	return PublicKeyWire{
+		X: pk.X.Bytes(),
+		Y: pk.Y.Bytes(),
+	}
+}
+
+func (pk PublicKeyWire) toEcdsa() ecdsa.PublicKey {
+	return ecdsa.PublicKey{
+		Curve: Curve(),
+		X:     new(big.Int).SetBytes(pk.X),
+		Y:     new(big.Int).SetBytes(pk.Y),
+	}
+}
+
+type PollKeyWire struct {
+	Origin PublicKeyWire
+	ID     uint64
+}
+
+func (msg PollKey) toWire() PollKeyWire {
 	return PollKeyWire{
-		X:  msg.Origin.X.Bytes(),
-		Y:  msg.Origin.Y.Bytes(),
-		ID: msg.ID,
+		Origin: PublicKeyWireFromEcdsa(msg.Origin),
+		ID:     msg.ID,
 	}
 }
 
 func (msg PollKeyWire) ToBase() PollKey {
 	return PollKey{
-		Origin: ecdsa.PublicKey{
-			Curve: Curve(),
-			X:     new(big.Int).SetBytes(msg.X),
-			Y:     new(big.Int).SetBytes(msg.Y),
-		},
-		ID: msg.ID,
-	}
-}
-
-func (msg Commitment) ToWire() CommitmentWire {
-	return CommitmentWire{
-		Hash: msg.Hash[:],
+		Origin: msg.Origin.toEcdsa(),
+		ID:     msg.ID,
 	}
 }
 
@@ -43,27 +51,24 @@ type CommitmentWire struct {
 	Hash []byte
 }
 
-func (msg CommitmentWire) Check() error {
-	return nil // TODO check hash and salt size
-}
-
-func (msg CommitmentWire) ToBase() (Commitment, error) {
-	var c Commitment
-
+func (msg CommitmentWire) check() error {
 	if len(msg.Hash) != sha256.Size {
-		return c, errors.New("invalid hash size")
+		return errors.New("invalid hash size")
 	}
 
-	copy(c.Hash[:], msg.Hash)
-
-	return c, nil
+	return nil
 }
 
-func (msg Vote) ToWire() VoteWire {
-	return VoteWire{
-		Salt:   msg.Salt[:],
-		Option: msg.Option,
+func (msg Commitment) toWire() CommitmentWire {
+	return CommitmentWire{
+		Hash: msg.Hash[:],
 	}
+}
+
+func (msg CommitmentWire) ToBase() Commitment {
+	var c Commitment
+	copy(c.Hash[:], msg.Hash)
+	return c
 }
 
 type VoteWire struct {
@@ -71,119 +76,141 @@ type VoteWire struct {
 	Option string
 }
 
-func (msg VoteWire) Check() error {
+func (msg VoteWire) check() error {
+	if len(msg.Salt) != SaltSize {
+		return errors.New("invalid salt size")
+	}
+
 	return nil
 }
 
-func (msg VoteWire) ToBase() (Vote, error) {
-	var v Vote
-
-	if len(msg.Salt) != SaltSize {
-		return v, errors.New("invalid salt size")
+func (msg Vote) toWire() VoteWire {
+	return VoteWire{
+		Salt:   msg.Salt[:],
+		Option: msg.Option,
 	}
-
-	copy(v.Salt[:], msg.Salt)
-
-	return v, nil
 }
 
-func (msg PollPacket) ToWire() PollPacketWire {
+func (msg VoteWire) ToBase() Vote {
+	var v Vote
+	copy(v.Salt[:], msg.Salt)
+	return v
+}
+
+type PollPacketWire struct {
+	ID         PollKeyWire
+	Poll       *Poll
+	VoteKey    *VoteKeyWire
+	VoteKeys   *VoteKeysWire
+	Commitment *CommitmentWire
+	Vote       *VoteWire
+}
+
+func (pkg PollPacketWire) check() error {
+	var nilCount uint = 0
+	var err error = nil
+	retErr := func(err string) error {
+		return errors.New("PollPacketWire: " + err)
+	}
+
+	if pkg.Poll != nil {
+		nilCount++
+	}
+
+	if pkg.VoteKey != nil {
+		nilCount++
+	}
+
+	if pkg.VoteKeys != nil {
+		nilCount++
+	}
+
+	if pkg.Commitment != nil {
+		nilCount++
+		err = pkg.Commitment.check()
+	}
+
+	if pkg.Vote != nil {
+		nilCount++
+	}
+
+	if err != nil {
+		return retErr(err.Error())
+	}
+
+	if nilCount > 1 {
+		return retErr("too much fields defined")
+	} else if nilCount == 0 {
+		return retErr("no field defined")
+	}
+
+	return nil
+}
+
+func (msg PollPacket) toWire() PollPacketWire {
+	var vk *VoteKeyWire = nil
+	if msg.VoteKey != nil {
+		wired := msg.VoteKey.toWire()
+		vk = &wired
+	}
+
+	var vks *VoteKeysWire = nil
+	if msg.VoteKeys != nil {
+		wired := msg.VoteKeys.toWire()
+		vks = &wired
+	}
+
 	var c *CommitmentWire = nil
 	if msg.Commitment != nil {
-		wired := msg.Commitment.ToWire()
+		wired := msg.Commitment.toWire()
 		c = &wired
 	}
 
 	var v *VoteWire = nil
 	if msg.Vote != nil {
-		wired := msg.Vote.ToWire()
+		wired := msg.Vote.toWire()
 		v = &wired
 	}
 
 	return PollPacketWire{
-		ID:              msg.ID.ToWire(),
-		Poll:            msg.Poll,
-		Commitment:      c,
-		PollCommitments: msg.PollCommitments,
-		Vote:            v,
+		ID:         msg.ID.toWire(),
+		Poll:       msg.Poll,
+		VoteKey:    vk,
+		VoteKeys:   vks,
+		Commitment: c,
+		Vote:       v,
 	}
 }
 
-type PollPacketWire struct {
-	ID              PollKeyWire
-	Poll            *Poll
-	Commitment      *CommitmentWire
-	PollCommitments *PollCommitments
-	Vote            *VoteWire
-}
-
-func (msg PollPacketWire) ToBase() (PollPacket, error) {
+func (msg PollPacketWire) ToBase() PollPacket {
 	const head = "GossipPacketWire: "
 
 	ret := PollPacket{
-		ID:              msg.ID.ToBase(),
-		Poll:            msg.Poll,
-		PollCommitments: msg.PollCommitments,
+		ID:   msg.ID.ToBase(),
+		Poll: msg.Poll,
 	}
 
-	var c *Commitment
+	if msg.VoteKey != nil {
+		wired := msg.VoteKey.toBase()
+		ret.VoteKey = &wired
+	}
+
+	if msg.VoteKeys != nil {
+		wired := msg.VoteKeys.toBase()
+		ret.VoteKeys = &wired
+	}
+
 	if msg.Commitment != nil {
-		wired, err := msg.Commitment.ToBase()
-		if err != nil {
-			return ret, errors.New(head + err.Error())
-		}
-		c = &wired
+		wired := msg.Commitment.ToBase()
+		ret.Commitment = &wired
 	}
 
-	var v *Vote
 	if msg.Vote != nil {
-		wired, err := msg.Vote.ToBase()
-		if err != nil {
-			return ret, errors.New(head + err.Error())
-		}
-		v = &wired
+		wired := msg.Vote.ToBase()
+		ret.Vote = &wired
 	}
 
-	ret.Commitment = c
-	ret.Vote = v
-
-	return ret, nil
-}
-
-func (pkg PollPacketWire) Check() error {
-	var nilCount uint = 0
-	var err error = nil
-
-	if pkg.Poll != nil {
-		nilCount++
-		err = pkg.Poll.Check()
-	}
-
-	if pkg.Commitment != nil {
-		nilCount++
-		err = pkg.Commitment.Check()
-	}
-
-	if pkg.PollCommitments != nil {
-		nilCount++
-		err = pkg.PollCommitments.Check()
-	}
-
-	if pkg.Vote != nil {
-		nilCount++
-		err = pkg.PollCommitments.Check()
-	}
-
-	if err != nil {
-		return errors.New("PollPacketWire: " + err.Error())
-	}
-	if nilCount > 1 {
-		return errors.New("too much fields defined")
-	} else if nilCount == 0 {
-		return errors.New("no field defined")
-	}
-
-	return nil
+	return ret
 }
 
 // nice protobuf, do not support map with any type
@@ -191,26 +218,26 @@ type StatusPacketWire struct {
 	Infos map[string]ShareablePollInfo
 }
 
-func (pkg StatusPacketWire) Check() error {
-	/*errRet := func(err error) error {
+func (pkg StatusPacketWire) check() error {
+	errRet := func(err error) error {
 		return errors.New("StatusPacketWire: " + err.Error())
 	}
 
-	for id, poll := range pkg.Infos {
-		/* TODO err := poll.Check()
+	for k, _ := range pkg.Infos {
+		_, err := PollKeyFromString(k)
 		if err != nil {
 			return errRet(err)
 		}
-	}*/
+	}
 
 	return nil
 }
 
-func (pkg StatusPacket) ToWire() StatusPacketWire {
+func (pkg StatusPacket) toWire() StatusPacketWire {
 	infos := make(map[string]ShareablePollInfo)
 
 	for id, info := range pkg.Infos {
-		infos[id.String()] = info
+		infos[id.Unpack().String()] = info
 	}
 
 	return StatusPacketWire{
@@ -218,103 +245,284 @@ func (pkg StatusPacket) ToWire() StatusPacketWire {
 	}
 }
 
-func (pkg StatusPacketWire) ToBase() (StatusPacket, error) {
-	// why did we invented good languages when we can write this nice
-	// boilerplate code in go instead
-	errRet := func(err error) error {
-		return errors.New("GossipPacketWire: " + err.Error())
-	}
-
+func (pkg StatusPacketWire) ToBase() StatusPacket {
 	ret := StatusPacket{
-		Infos: make(map[PollKey]ShareablePollInfo),
+		Infos: make(map[PollKeyMap]ShareablePollInfo),
 	}
 
 	for k, info := range pkg.Infos {
-		id, err := PollKeyFromString(k)
-		if err != nil {
-			return ret, errRet(err)
-		}
-
-		ret.Infos[id] = info
+		id, _ := PollKeyFromString(k) // check()'ed before
+		ret.Infos[id.Pack()] = info
 	}
 
-	return ret, nil
-}
-
-func (msg GossipPacket) ToWire() GossipPacketWire {
-	var p *PollPacketWire = nil
-	if msg.Poll != nil {
-		wired := msg.Poll.ToWire()
-		p = &wired
-	}
-
-	var s *StatusPacketWire = nil
-	if msg.Status != nil {
-		wired := msg.Status.ToWire()
-		s = &wired
-	}
-
-	return GossipPacketWire{
-		Poll:      p,
-		Signature: msg.Signature,
-		Status:    s,
-	}
+	return ret
 }
 
 type GossipPacketWire struct {
 	Poll      *PollPacketWire
-	Signature *Signature // TODO it can't be optional, can it?
+	Signature *SignatureWire
 	Status    *StatusPacketWire
-}
-
-func (msg GossipPacketWire) ToBase() (GossipPacket, error) {
-	ret := GossipPacket{
-		Signature: msg.Signature,
-	}
-
-	if msg.Poll != nil {
-		wire, err := msg.Poll.ToBase()
-		if err != nil {
-			return ret, errors.New("GossipPacketWire: " + err.Error())
-		}
-		ret.Poll = &wire
-	}
-
-	if msg.Status != nil {
-		wire, err := msg.Status.ToBase()
-		if err != nil {
-			return ret, errors.New("GossipPacketWire: " + err.Error())
-		}
-		ret.Status = &wire
-	}
-
-	return ret, nil
+	Reputation *ReputationPacketWire
 }
 
 func (pkg GossipPacketWire) Check() error {
 	var nilCount uint = 0
 	var err error = nil
-	const head string = "GossipPacket: "
+	errRet := func(err string) error {
+		return errors.New("GossipPacketWire: " + err)
+	}
 
 	if pkg.Poll != nil {
 		nilCount++
-		err = pkg.Poll.Check()
+		err = pkg.Poll.check()
+
+		if pkg.Signature == nil {
+			return errRet("poll without signature")
+		}
 	}
 
 	if pkg.Status != nil {
 		nilCount++
-		err = pkg.Status.Check()
-	}
-
-	if nilCount > 1 {
-		return errors.New(head + "too much fields defined")
-	} else if nilCount == 0 {
-		return errors.New(head + "no field defined")
+		err = pkg.Status.check()
 	}
 
 	if err != nil {
-		return errors.New(head + err.Error())
+		return errRet(err.Error())
+	}
+
+	if nilCount > 1 {
+		return errRet("too much fields defined")
+	} else if nilCount == 0 {
+		return errRet("no field defined")
 	}
 
 	return nil
+}
+
+func (msg GossipPacket) ToWire() GossipPacketWire {
+	// why did we invented good languages when we can write this nice
+	// boilerplate code in go instead
+	var p *PollPacketWire = nil
+	if msg.Poll != nil {
+		wired := msg.Poll.toWire()
+		p = &wired
+	}
+
+	var s *StatusPacketWire = nil
+	if msg.Status != nil {
+		wired := msg.Status.toWire()
+		s = &wired
+	}
+
+	var sig *SignatureWire = nil
+	if msg.Signature != nil {
+		wired := msg.Signature.toWire()
+		sig = &wired
+	}
+
+	var r *ReputationPacketWire = nil
+	if msg.Reputation != nil {
+		wired := msg.Reputation.ToWire()
+		r = &wired
+	}
+
+	return GossipPacketWire{
+		Poll:      p,
+		Signature: sig,
+		Status:    s,
+		Reputation: r,
+	}
+}
+
+func (msg GossipPacketWire) ToBase() GossipPacket {
+	var ret GossipPacket
+
+	if msg.Poll != nil {
+		wire := msg.Poll.ToBase()
+		ret.Poll = &wire
+	}
+
+	if msg.Status != nil {
+		wire := msg.Status.ToBase()
+		ret.Status = &wire
+	}
+
+	if msg.Signature != nil {
+		wire := msg.Signature.ToBase()
+		ret.Signature = &wire
+	}
+
+	return ret
+}
+
+type EllipticCurveSignatureWire struct {
+	R []byte
+	S []byte
+}
+
+func (msg EllipticCurveSignature) toWire() EllipticCurveSignatureWire {
+	return EllipticCurveSignatureWire{
+		R: msg.R.Bytes(),
+		S: msg.S.Bytes(),
+	}
+}
+
+func (msg EllipticCurveSignatureWire) ToBase() EllipticCurveSignature {
+	r := new(big.Int).SetBytes(msg.R)
+	s := new(big.Int).SetBytes(msg.S)
+
+	return EllipticCurveSignature{
+		R: *r,
+		S: *s,
+	}
+}
+
+type SignatureWire struct {
+	Linkable *LinkableRingSignatureWire
+	Elliptic *EllipticCurveSignatureWire
+}
+
+func (msg SignatureWire) check() error {
+	var err error = nil
+
+	if (msg.Linkable == nil) != (msg.Elliptic == nil) { // bool xor
+		return errors.New("SignatureWire: no/all field definied")
+	}
+
+	if msg.Linkable != nil {
+		err = msg.Linkable.check()
+	}
+
+	return err
+}
+
+func (msg Signature) toWire() SignatureWire {
+	var l *LinkableRingSignatureWire = nil
+	if msg.Linkable != nil {
+		wired := msg.Linkable.toWire()
+		l = &wired
+	}
+
+	var e *EllipticCurveSignatureWire = nil
+	if msg.Elliptic != nil {
+		wired := msg.Elliptic.toWire()
+		e = &wired
+	}
+
+	return SignatureWire{
+		Linkable: l,
+		Elliptic: e,
+	}
+}
+
+func (msg SignatureWire) ToBase() Signature {
+	var ret Signature
+
+	if msg.Linkable != nil {
+		l := msg.Linkable.ToBase()
+		ret.Linkable = &l
+	}
+
+	if msg.Elliptic != nil {
+		e := msg.Elliptic.ToBase()
+		ret.Elliptic = &e
+	}
+
+	return ret
+}
+
+type LinkableRingSignatureWire struct {
+	Message []byte
+	C0      []byte
+	S       [][]byte
+	Tag     [][]byte
+}
+
+func (msg LinkableRingSignatureWire) check() error {
+	if len(msg.Tag) != 2 {
+		return errors.New("LinkableRingSignatureWire: tag size isn't 2")
+	}
+
+	return nil
+}
+
+func (msg LinkableRingSignature) toWire() LinkableRingSignatureWire {
+	ss := make([][]byte, len(msg.S))
+	for i, s := range msg.S {
+		ss[i] = s.Bytes()
+	}
+
+	tag := make([][]byte, 2)
+	for i, t := range msg.Tag {
+		tag[i] = t.Bytes()
+	}
+
+	return LinkableRingSignatureWire{
+		Message: msg.Message,
+		C0:      msg.C0,
+		S:       ss,
+		Tag:     tag,
+	}
+}
+
+func (msg LinkableRingSignatureWire) ToBase() LinkableRingSignature {
+	ret := LinkableRingSignature{
+		Message: msg.Message,
+		C0:      msg.C0,
+		S:       make([]*big.Int, len(msg.S)),
+	}
+
+	for i, s := range msg.S {
+		ret.S[i] = new(big.Int).SetBytes(s)
+	}
+
+	for i, t := range msg.Tag {
+		ret.Tag[i] = new(big.Int).SetBytes(t)
+	}
+
+	return ret
+}
+
+type VoteKeyWire struct {
+	Key PublicKeyWire
+}
+
+func (msg VoteKey) toWire() VoteKeyWire {
+	return VoteKeyWire{
+		Key: PublicKeyWireFromEcdsa(msg.Key),
+	}
+}
+
+func (msg VoteKeyWire) toBase() VoteKey {
+	return VoteKey{
+		Key: msg.Key.toEcdsa(),
+	}
+}
+
+type VoteKeysWire struct {
+	Keys []VoteKeyWire
+}
+
+func (msg VoteKeys) toWire() VoteKeysWire {
+	keys := make([]VoteKeyWire, len(msg.Keys))
+
+	for i, k := range msg.Keys {
+		keys[i] = k.toWire()
+	}
+
+	return VoteKeysWire{
+		Keys: keys,
+	}
+}
+
+func (msg VoteKeysWire) toBase() VoteKeys {
+	keys := make([]VoteKey, len(msg.Keys))
+
+	for i, k := range msg.Keys {
+		keys[i] = k.toBase()
+	}
+
+	return VoteKeys{
+		Keys: keys,
+	}
 }

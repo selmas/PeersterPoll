@@ -42,17 +42,43 @@ new_key() {
 	client key new "$origin"
 }
 
-new_poll() {
+poll_new() {
 	local port=$1
+	shift
 
-	client -UIPort $1 poll new
+	client -UIPort $port poll new "$@"
+}
+
+poll_list_contains_id() {
+	local port=$1
+	local id=$2
+
+	client -UIPort $port poll list | grep -q "$id"
+}
+
+vote_put() {
+	local port=$1
+	local id=$2
+	local option=$3
+
+	client -UIPort $port vote put "$id" "$option"
 }
 
 log_check() {
 	local name=$1
 	local pattern=$2
 
-	grep "$pattern" "$name.log"
+	grep "$pattern" "$name.log" > /dev/null
+}
+
+log_wait() {
+	local name=$1
+	local pattern=$2
+
+	while ! log_check "$name" "$pattern"
+	do
+		sleep 0.2
+	done
 }
 
 cleanup() {

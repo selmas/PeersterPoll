@@ -20,7 +20,7 @@ import (
 
 type ShareablePollInfo struct {
 	Poll         *Poll
-	Participants [][]*big.Int
+	Participants [][2]*big.Int
 	Commitments  []Commitment
 	Votes        []Vote
 }
@@ -43,14 +43,14 @@ type PeerSet struct {
 
 type PollSet struct {
 	sync.RWMutex
-	m map[PollKey]PollInfo
+	m map[PollKeyMap]PollInfo
 }
 
 func (s *PollSet) Has(k PollKey) bool {
 	s.RLock()
 	defer s.RUnlock()
 
-	_, ok := s.m[k]
+	_, ok := s.m[k.Pack()]
 	return ok
 }
 
@@ -58,7 +58,7 @@ func (s *PollSet) Get(k PollKey) PollInfo {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.m[k]
+	return s.m[k.Pack()]
 }
 
 // initialize tags mapping
@@ -66,7 +66,7 @@ func (s *PollSet) Store(pkg PollPacket) {
 	s.Lock()
 	defer s.Unlock()
 
-	info := s.m[pkg.ID]
+	info := s.m[pkg.ID.Pack()]
 
 	if pkg.Poll != nil {
 		poll := *pkg.Poll
@@ -85,27 +85,27 @@ func (s *PollSet) Store(pkg PollPacket) {
 		info.Votes = append(info.Votes, *pkg.Vote)
 	}
 
-	s.m[pkg.ID] = info
+	s.m[pkg.ID.Pack()] = info
 }
 
 // TODO maybe split in two to have voter/server separation
 type RunningPollReader struct {
-	Poll            <-chan Poll
-	LocalVote       <-chan string
-	Commitments     <-chan Commitment
-	PollCommitments <-chan PollCommitments
-	Votes           <-chan Vote
+	Poll       <-chan Poll
+	LocalVote  <-chan string
+	VoteKey    <-chan VoteKey
+	VoteKeys   <-chan VoteKeys
+	Commitment <-chan Commitment
+	Vote       <-chan Vote
 }
 
 type RunningPollWriter struct {
-	Poll            chan<- Poll
-	LocalVote       chan<- string
-	Commitments     chan<- Commitment
-	PollCommitments chan<- PollCommitments
-	Votes           chan<- Vote
+	Poll       chan<- Poll
+	LocalVote  chan<- string
+	VoteKey    chan<- VoteKey
+	VoteKeys   chan<- VoteKeys
+	Commitment chan<- Commitment
+	Vote       chan<- Vote
 }
-
-var curve elliptic.Curve
 
 func (s RunningPollWriter) Send(pkg PollPacket) {
 
@@ -118,33 +118,33 @@ func (s RunningPollWriter) Send(pkg PollPacket) {
 		}
 	}
 
+	if pkg.VoteKey != nil {
+		s.VoteKey <- *pkg.VoteKey
+	}
+
+	if pkg.VoteKeys != nil {
+		s.VoteKeys <- *pkg.VoteKeys
+	}
+
 	if pkg.Commitment != nil {
-		s.Commitments <- *pkg.Commitment
-	}
-
-	if pkg.PollCommitments != nil {
-		s.PollCommitments <- *pkg.PollCommitments
-	}
-
-	if pkg.PollCommitments != nil {
-		s.PollCommitments <- *pkg.PollCommitments
+		s.Commitment <- *pkg.Commitment
 	}
 
 	if pkg.Vote != nil {
-		s.Votes <- *pkg.Vote
+		s.Vote <- *pkg.Vote
 	}
 }
 
 type RunningPollSet struct {
 	sync.RWMutex
-	m map[PollKey]RunningPollWriter
+	m map[PollKeyMap]RunningPollWriter
 }
 
 func (s *RunningPollSet) Has(k PollKey) bool {
 	s.RLock()
 	defer s.RUnlock()
 
-	_, ok := s.m[k]
+	_, ok := s.m[k.Pack()]
 	return ok
 }
 
@@ -154,43 +154,46 @@ func (s *RunningPollSet) Get(k PollKey) RunningPollWriter {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.m[k]
+	return s.m[k.Pack()]
 }
 
 func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
 	assert(!s.Has(k))
 
 	poll := make(chan Poll)
-	commitments := make(chan Commitment)
-	pollCommitments := make(chan PollCommitments)
-	votes := make(chan Vote)
+	commitment := make(chan Commitment)
+	voteKey := make(chan VoteKey)
+	voteKeys := make(chan VoteKeys)
+	vote := make(chan Vote)
 
 	r := RunningPollReader{
-		Poll:            poll,
-		Commitments:     commitments,
-		PollCommitments: pollCommitments,
-		Votes:           votes,
+		Poll:       poll,
+		VoteKey:    voteKey,
+		VoteKeys:   voteKeys,
+		Commitment: commitment,
+		Vote:       vote,
 	}
 
 	w := RunningPollWriter{
-		Poll:            poll,
-		Commitments:     commitments,
-		PollCommitments: pollCommitments,
-		Votes:           votes,
+		Poll:       poll,
+		VoteKey:    voteKey,
+		VoteKeys:   voteKeys,
+		Commitment: commitment,
+		Vote:       vote,
 	}
 
 	s.Lock()
-	s.m[k] = w
+	s.m[k.Pack()] = w
 	s.Unlock()
 
 	go handler(k, r)
 }
 
-func (s *RunningPollSet) Send(k PollKey, pkg PollPacket) {
+func (s *RunningPollSet) Send(pkg PollPacket) {
 	s.RLock()
 	defer s.RUnlock()
 
-	r := s.m[k]
+	r := s.m[pkg.ID.Pack()]
 	r.Send(pkg)
 }
 
@@ -219,8 +222,7 @@ type Gossiper struct {
 	Polls        PollSet
 	Server       Server
 	ValidKeys    []ecdsa.PublicKey
-	Reputations  RepOpinions
-	Blacklist    Blacklist
+	Reputations  ReputationInfo
 }
 
 func (g *Gossiper) addPeer(addr net.UDPAddr) {
@@ -233,12 +235,12 @@ func (g *Gossiper) addPeer(addr net.UDPAddr) {
 func NewServer(address string) Server {
 	addr, err := net.ResolveUDPAddr("udp4", address)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	conn, err := net.ListenUDP("udp4", addr)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	return Server{
@@ -266,14 +268,13 @@ func NewGossiper(name string, server Server) (*Gossiper, error) {
 			Set: make(map[string]bool),
 		},
 		RunningPolls: RunningPollSet{
-			m: make(map[PollKey]RunningPollWriter),
+			m: make(map[PollKeyMap]RunningPollWriter),
 		},
 		Polls: PollSet{
-			m: make(map[PollKey]PollInfo),
+			m: make(map[PollKeyMap]PollInfo),
 		},
-		ValidKeys:   validKeys,
-		Reputations: make(RepOpinions),
-		Blacklist:   make(Blacklist),
+		ValidKeys: validKeys,
+		Reputations: NewReputationInfo(),
 	}, nil
 }
 
@@ -312,12 +313,7 @@ func RunServer(gossiper *Gossiper, server Server, dispatcher Dispatcher) {
 			return
 		}
 
-		pkg, err := msg.ToBase()
-		if err != nil {
-			log.Println("badly formatted GossipPacketWire received:", err)
-			return
-		}
-
+		pkg := msg.ToBase()
 		go dispatcher(*peerAddr, pkg)
 	}
 }
@@ -338,14 +334,20 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	return addr
 }
 
-func writeMsgToUDP(server Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket, signature *Signature) {
+func writeMsgToUDP(server Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket, signature *Signature,
+	reputation *ReputationPacket) {
 	msg := GossipPacket{
-		Poll:      poll,
-		Signature: signature,
-		Status:    status,
+		Poll:       poll,
+		Signature:  signature,
+		Status:     status,
+		Reputation: reputation,
 	}.ToWire()
-	toSend, err := protobuf.Encode(&msg)
+	err := msg.Check()
+	if err != nil {
+		panic(err)
+	}
 
+	toSend, err := protobuf.Encode(&msg)
 	if err != nil {
 		panic(err)
 	}
@@ -360,12 +362,12 @@ func (g *Gossiper) SendPoll(id PollKey, msg Poll) {
 	}
 	sig, err := ecSignature(g, pkg)
 	if err != nil {
-		return
+		panic(err)
 	}
 	g.SendPollPacket(&pkg, &sig, nil)
 }
 
-func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
+func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][2]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
 	pkg := PollPacket{
 		ID:         id,
 		Commitment: &msg,
@@ -380,10 +382,24 @@ func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*
 	g.SendPollPacket(&pkg, &Signature{&lrs, nil}, nil)
 }
 
-func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments) {
+func (g *Gossiper) SendVoteKey(id PollKey, msg VoteKey) {
 	pkg := PollPacket{
-		ID:              id,
-		PollCommitments: &msg,
+		ID:      id,
+		VoteKey: &msg,
+	}
+
+	sig, err := ecSignature(g, pkg)
+	if err != nil {
+		return
+	}
+
+	g.SendPollPacket(&pkg, &sig, nil)
+}
+
+func (g *Gossiper) SendVoteKeys(id PollKey, msg VoteKeys) {
+	pkg := PollPacket{
+		ID:       id,
+		VoteKeys: &msg,
 	}
 
 	sig, err := ecSignature(g, pkg)
@@ -408,10 +424,10 @@ func ecSignature(g *Gossiper, poll PollPacket) (Signature, error) {
 		log.Printf("error generating elliptic curve signature")
 		return Signature{}, err
 	}
-	return Signature{nil, &EllipticCurveSignature{r, s}}, nil
+	return Signature{nil, &EllipticCurveSignature{*r, *s}}, nil
 }
 
-func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
+func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][2]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
 	pkg := PollPacket{
 		ID:   id,
 		Vote: &vote,
@@ -434,9 +450,9 @@ func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *Signature, fromPeer *net
 			break
 		}
 
-		writeMsgToUDP(g.Server, peer, msg, nil, sig)
+		writeMsgToUDP(g.Server, peer, msg, nil, sig, nil)
 
-		printFlippedCoin(peer, "rumor")
+		printFlippedCoin(peer, "poll")
 		if rand.Intn(2) == 0 {
 			break
 		}
@@ -447,7 +463,7 @@ func getStatus(g *Gossiper) StatusPacket {
 	g.Polls.Lock()
 	defer g.Polls.Unlock()
 
-	infos := make(map[PollKey]ShareablePollInfo)
+	infos := make(map[PollKeyMap]ShareablePollInfo)
 
 	for id, info := range g.Polls.m {
 		infos[id] = info.ShareablePollInfo
@@ -505,33 +521,65 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 
 		if pkg.Poll != nil {
 			poll := *pkg.Poll
-			if !signatureValid(g, pkg) || doubleVoted(g, pkg) {
-				// TODO supect peer
+
+			if !g.SignatureValid(pkg) {
+				log.Println("invalid signature found but not handled")
+				// TODO suspect peer
 				return
 			}
+
+			if pkg.Signature.Linkable != nil {
+				if doubleVoted(g, pkg) {
+					log.Println("double vote but not handled")
+					// TODO suspect peer
+					return
+				}
+				g.Polls.m[pkg.Poll.ID.Pack()].Tags[pkg.Signature.Linkable.Tag] = *pkg.Poll.Commitment
+			}
+
 			poll.Print(fromPeer)
 
 			g.Polls.Store(poll)
-			g.Polls.m[pkg.Poll.ID].Tags[pkg.Signature.linkableRingSig.tag] = *pkg.Poll.Commitment
 
 			if !g.RunningPolls.Has(poll.ID) {
 				g.RunningPolls.Add(poll.ID, VoterHandler(g))
 			}
 
 			assert(g.RunningPolls.Has(poll.ID))
-			g.RunningPolls.Send(poll.ID, poll)
+			g.RunningPolls.Send(poll)
 		}
 
 		if pkg.Status != nil {
-			syncStatus(g, fromPeer, *pkg.Status)
+			status := *pkg.Status
+			syncStatus(g, fromPeer, status)
 		}
 
+		if pkg.Reputation != nil {
+
+			// TODO check if packet is new
+
+			if !repSignatureValid(g, pkg) {
+				g.Reputations.Suspect(fromPeer.String())
+			}
+
+			pollID := pkg.Reputation.PollID
+
+			// store Reputation in receivedOpinions[poll]
+			g.Reputations.AddPeerOpinion(pkg.Reputation, pollID)
+
+			/* TODO if recvRep.len == #peers || timeout{
+				g.Reputations.AddReputations(pollID)
+				g.Reputations.AddTablesWait[pollID] <- true
+			}*/
+
+			//TODO gossip packet
+		}
 	}
 }
 
 func doubleVoted(g *Gossiper, pkg GossipPacket) bool {
-	tag := pkg.Signature.linkableRingSig.tag
-	commit, stored := g.Polls.m[pkg.Poll.ID].Tags[tag]
+	tag := pkg.Signature.Linkable.Tag
+	commit, stored := g.Polls.m[pkg.Poll.ID.Pack()].Tags[tag]
 
 	if stored {
 		return !(string(commit.Hash[:]) == string(pkg.Poll.Commitment.Hash[:]))
@@ -540,14 +588,14 @@ func doubleVoted(g *Gossiper, pkg GossipPacket) bool {
 	return false
 }
 
-func signatureValid(g *Gossiper, pkg GossipPacket) bool {
+func (g *Gossiper) SignatureValid(pkg GossipPacket) bool {
 	poll := pkg.Poll
 
 	if (poll.Commitment != nil || poll.Vote != nil) && !(poll.Commitment != nil && poll.Vote != nil) {
-		return pkg.Signature.linkableRingSig != nil && verifySig(*pkg.Signature.linkableRingSig, g.Polls.m[pkg.Poll.ID].Participants)
+		return pkg.Signature.Linkable != nil && verifySig(*pkg.Signature.Linkable, g.Polls.m[pkg.Poll.ID.Pack()].Participants)
 	}
 
-	if poll.PollCommitments != nil || poll.Poll != nil {
+	if poll.VoteKeys != nil || poll.Poll != nil {
 		input, err := json.Marshal(poll)
 		if err != nil {
 			log.Printf("unable to encode as json")
@@ -559,8 +607,8 @@ func signatureValid(g *Gossiper, pkg GossipPacket) bool {
 			log.Printf("error generating elliptic curve signature")
 		}
 
-		return pkg.Signature.ellipticCurveSig != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash.Sum(nil),
-			pkg.Signature.ellipticCurveSig.r, pkg.Signature.ellipticCurveSig.s)
+		return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash.Sum(nil),
+			&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
 	}
 
 	return false
@@ -569,7 +617,7 @@ func signatureValid(g *Gossiper, pkg GossipPacket) bool {
 func parseAddr(str string) *net.UDPAddr {
 	addr, err := net.ResolveUDPAddr("udp", str)
 	if err != nil {
-		log.Fatal("invalid peer \"", str, "\": ", err)
+		panic(err)
 	}
 
 	return addr
@@ -586,8 +634,8 @@ func AntiEntropyGossip(gossiper *Gossiper) {
 			continue
 		}
 
-		printFlippedCoin(peer, "status")
+		//printFlippedCoin(peer, "status")
 		status := getStatus(gossiper)
-		writeMsgToUDP(gossiper.Server, peer, nil, &status, nil)
+		writeMsgToUDP(gossiper.Server, peer, nil, &status, nil, nil)
 	}
 }
