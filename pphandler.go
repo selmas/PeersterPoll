@@ -68,8 +68,10 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 			select {
 			case k := <-r.VoteKey:
 				_,ok := containsKey(g.ValidKeys,k.publicKey)
-				if ok {}
-				keysMap[k.Pack()] = true
+				if ok {
+					keysMap[k.Pack()] = true
+				}
+
 				// TODO check others commits -> bad rep
 			case <-time.After(poll.Duration):
 				break Timeout
