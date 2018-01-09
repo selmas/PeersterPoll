@@ -168,6 +168,7 @@ func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
 	assert(!s.Has(k))
 
 	poll := make(chan Poll)
+	localVote := make(chan string)
 	commitment := make(chan Commitment)
 	voteKey := make(chan VoteKey)
 	voteKeys := make(chan VoteKeys)
@@ -175,6 +176,7 @@ func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
 
 	r := RunningPollReader{
 		Poll:       poll,
+		LocalVote:  localVote,
 		VoteKey:    voteKey,
 		VoteKeys:   voteKeys,
 		Commitment: commitment,
@@ -183,6 +185,7 @@ func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
 
 	w := RunningPollWriter{
 		Poll:       poll,
+		LocalVote:  localVote,
 		VoteKey:    voteKey,
 		VoteKeys:   voteKeys,
 		Commitment: commitment,
