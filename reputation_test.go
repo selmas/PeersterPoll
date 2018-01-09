@@ -92,9 +92,9 @@ func TestBlacklist(t *testing.T) {
 		t.Error("Didn't blacklist peer but should have")
 	}
 
-	if repTabA.Reputations[peerA].Value != 0 ||
-		repTabA.Reputations[peerB].Value != 0 ||
-		repTabA.Reputations[peerC].Value != -4 {
+	if repTabA.ReputationPkts[peerA].Value != 0 ||
+		repTabA.ReputationPkts[peerB].Value != 0 ||
+		repTabA.ReputationPkts[peerC].Value != -4 {
 
 		t.Error("Wrong reputations")
 	}
@@ -202,11 +202,11 @@ func TestTempUpdate(t *testing.T) {
 	fromPeer := peerA
 
 	if !repSignatureValid(g, pkg) {
-		g.Reputations.Suspect(fromPeer)
+		g.ReputationPkts.Suspect(fromPeer)
 	}
 
 	pollID := pkg.Reputation.PollID
 
 	// store Reputation in receivedOpinions[poll]
-	g.Reputations.AddPeerOpinion(pkg.Reputation, pollID)
+	g.ReputationPkts.AddPeerOpinion(pkg.Reputation, pollID)
 }*/

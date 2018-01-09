@@ -23,11 +23,11 @@ type ShareablePollInfo struct {
 	Participants [][2]*big.Int
 	Commitments  []Commitment
 	Votes        []Vote
+	Tags     	 map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
 }
 
 type PollInfo struct {
 	ShareablePollInfo
-	Tags     map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
 	Registry *crypto.PublicKey
 }
 
@@ -223,6 +223,7 @@ type Gossiper struct {
 	Server       Server
 	ValidKeys    []ecdsa.PublicKey
 	Reputations  ReputationInfo
+	Status       Status
 }
 
 func (g *Gossiper) addPeer(addr net.UDPAddr) {
@@ -247,6 +248,11 @@ func NewServer(address string) Server {
 		Addr: addr,
 		Conn: conn,
 	}
+}
+
+type Status struct {
+	PktStatus        map[Signature]*PollPacket
+	ReputationStatus map[Signature]*ReputationPacket
 }
 
 func NewGossiper(name string, server Server) (*Gossiper, error) {
@@ -275,6 +281,10 @@ func NewGossiper(name string, server Server) (*Gossiper, error) {
 		},
 		ValidKeys: validKeys,
 		Reputations: NewReputationInfo(),
+		Status: Status{
+			make(map[Signature]*PollPacket),
+			make(map[Signature]*ReputationPacket),
+		},
 	}, nil
 }
 
@@ -443,6 +453,7 @@ func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][2]*big.Int, t
 	g.SendPollPacket(&pkg, &Signature{&lrs, nil}, nil)
 }
 
+
 func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *Signature, fromPeer *net.UDPAddr) {
 	for {
 		peer := getRandomPeer(&g.Peers, fromPeer)
@@ -463,56 +474,55 @@ func getStatus(g *Gossiper) StatusPacket {
 	g.Polls.Lock()
 	defer g.Polls.Unlock()
 
-	infos := make(map[PollKeyMap]ShareablePollInfo)
+	var signatures map[Signature]bool
+	for sig, := range g.Status.PktStatus {
+		signatures[sig] = true
+	}
 
-	for id, info := range g.Polls.m {
-		infos[id] = info.ShareablePollInfo
+	var reputations map[Signature]bool
+	for rep, := range g.Status.ReputationStatus {
+		reputations[rep] = true
 	}
 
 	return StatusPacket{
-		Infos: infos,
+		signatures,
+		reputations,
 	}
 }
 
-// Todo: how to properly use mapset.Set ???
-func syncStatus(gossiper *Gossiper, peer net.UDPAddr, s StatusPacket) {
-	/*gossiper.Polls.RLock()
-	defer gossiper.Polls.RUnlock()
-
-	// store vector clocks as sets
-	receivedPolls := set.NewSetFromSlice([]interface{}{
-		s.Want,
-	})
-	storedPolls := set.NewSetFromSlice([]interface{}{
-		getStatus(gossiper),
-	})
-
-	// Update my Poll storage
-	for _, status := range s.Want {
-		msg, found := gossiper.Polls.m[*status.key]
-
-		// if I don't have it, add it
-		if !found {
-			gossiper.Polls.m[*status.key] = &VoteSet{status.poll, &status.votes}
-			break
-		}
-
-		voteDiff := status.votes.Difference(msg.votes)
-		if voteDiff.Cardinality() != 0 {
-			gossiper.Polls.m[*status.key].votes = msg.votes.Union(status.votes)
-		}
-
-		participantDiff := status.poll.Participants.Difference(msg.poll.Participants)
-		if participantDiff.Cardinality() != 0 {
-			gossiper.Polls.m[*status.key].poll.Participants = msg.poll.Participants.Union(status.poll.Participants)
+func syncStatus(g *Gossiper, peer net.UDPAddr, rcvStatus StatusPacket) {
+	// check if peer is missing something and send it to him
+	myStatus := getStatus(g)
+	for sig,  := range myStatus.ReputationPkts {
+		_, exist := rcvStatus.ReputationPkts[sig]
+		if !exist {
+			g.SendReputationPacket(g.Status.ReputationStatus[sig],&sig,&peer)
 		}
 	}
 
-	// Compare vector clocks and send my updated vc if peer misses information
-	if storedPolls.Difference(receivedPolls).Cardinality() != 0 { // Todo: test this difference !!
-		writeMsgToUDP(gossiper.Server, peer, nil, getStatus(gossiper))
+	for sig := range myStatus.PollPkts {
+		_, exist := rcvStatus.PollPkts[sig]
+		if !exist {
+			g.SendPollPacket(g.Status.PktStatus[sig],&sig,&peer)
+		}
 	}
-	*/
+
+	// check if I am missing something and request it
+	for rep,  := range rcvStatus.ReputationPkts {
+		_, exist := myStatus.ReputationPkts[rep]
+		if !exist {
+			writeMsgToUDP(g.Server, &peer, nil, &myStatus, nil, nil)
+			return
+		}
+	}
+
+	for sig := range rcvStatus.PollPkts {
+		_, exist := myStatus.PollPkts[sig]
+		if !exist {
+			writeMsgToUDP(g.Server, &peer, nil, &myStatus, nil, nil)
+			return
+		}
+	}
 }
 
 func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
@@ -540,6 +550,7 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			poll.Print(fromPeer)
 
 			g.Polls.Store(poll)
+			g.Status.PktStatus[*pkg.Signature] = pkg.Poll
 
 			if !g.RunningPolls.Has(poll.ID) {
 				g.RunningPolls.Add(poll.ID, VoterHandler(g))
@@ -562,14 +573,16 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 				g.Reputations.Suspect(fromPeer.String())
 			}
 
+			g.Status.ReputationStatus[*pkg.Signature] = pkg.Reputation
+
 			pollID := pkg.Reputation.PollID
 
 			// store Reputation in receivedOpinions[poll]
 			g.Reputations.AddPeerOpinion(pkg.Reputation, pollID)
 
 			/* TODO if recvRep.len == #peers || timeout{
-				g.Reputations.AddReputations(pollID)
-				g.Reputations.AddTablesWait[pollID] <- true
+				g.ReputationPkts.AddReputations(pollID)
+				g.ReputationPkts.AddTablesWait[pollID] <- true
 			}*/
 
 			//TODO gossip packet
@@ -595,7 +608,7 @@ func (g *Gossiper) SignatureValid(pkg GossipPacket) bool {
 		return pkg.Signature.Linkable != nil && verifySig(*pkg.Signature.Linkable, g.Polls.m[pkg.Poll.ID.Pack()].Participants)
 	}
 
-	if poll.VoteKeys != nil || poll.Poll != nil {
+	if poll.VoteKeys != nil || poll.Poll != nil || poll.VoteKey != nil {
 		input, err := json.Marshal(poll)
 		if err != nil {
 			log.Printf("unable to encode as json")
@@ -607,26 +620,14 @@ func (g *Gossiper) SignatureValid(pkg GossipPacket) bool {
 			log.Printf("error generating elliptic curve signature")
 		}
 
-		return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash.Sum(nil),
-			&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
-	}
-
-	if poll.VoteKey != nil {
-		input, err := json.Marshal(poll)
-		if err != nil {
-			log.Printf("unable to encode as json")
+		if poll.VoteKey != nil {
+			return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.VoteKey.publicKey, hash.Sum(nil),
+				&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
+		} else {
+			return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash.Sum(nil),
+				&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
 		}
-
-		hash := sha256.New()
-		_, err = hash.Write(input)
-		if err != nil {
-			log.Printf("error generating elliptic curve signature")
-		}
-
-		return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.VoteKey.publicKey, hash.Sum(nil),
-			&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
 	}
-
 	return false
 }
 

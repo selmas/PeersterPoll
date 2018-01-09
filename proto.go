@@ -166,7 +166,8 @@ type PollPacket struct {
 }
 
 type StatusPacket struct {
-	Infos map[PollKeyMap]ShareablePollInfo
+	PollPkts       map[Signature]bool
+	ReputationPkts map[Signature]bool
 }
 
 type GossipPacket struct {
