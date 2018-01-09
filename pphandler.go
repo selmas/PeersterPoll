@@ -2,78 +2,31 @@ package pollparty
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
+	"log"
 	"math/big"
 	"time"
 )
 
 const NetworkConvergeDuration = time.Duration(10) * time.Second
 
-type PoolPacketHandler func(PollKey, RunningPollReader)
+type PoolPacketHandler func(PollKey, ecdsa.PrivateKey, RunningPollReader)
 
-func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
-	return func(id PollKey, r RunningPollReader) {
+func VoterHandler(g *Gossiper) PoolPacketHandler {
+	return func(id PollKey, key ecdsa.PrivateKey, r RunningPollReader) {
 		_ = <-r.Poll // TODO poll not used?
-
-		tmpKey, err := ecdsa.GenerateKey(Curve(), rand.Reader) // generates tmpKey pair
-		if err != nil {
-			panic(err)
-		}
+		log.Println("Voter: new poll:", id.String())
 
 		voteKey := VoteKey{
 			g.KeyPair.PublicKey,
-			tmpKey.PublicKey,
+			key.PublicKey,
 		}
 		g.SendVoteKey(id, voteKey)
+		log.Println("Voter: send back key")
 
 		keys := <-r.VoteKeys
+		log.Println("Voter: got keys")
 
-		participants := keys.ToParticipants()
-		g.storeParticipants(id, participants)
-
-		position, ok := containsKey(participants, tmpKey.PublicKey)
-		if !ok {
-			return // we are not part of this vote
-		}
-
-		commits := make([]Commitment, 0)
-		votes := make([]Vote, 0)
-
-		salt := make(chan [SaltSize]byte)
-		option := make(chan string)
-
-		go func() {
-			o := <-r.LocalVote
-			commit, s := NewCommitment(o)
-			salt <- s
-			option <- o
-			g.SendCommitment(id, commit, participants, tmpKey, position)
-			close(salt)
-			close(option)
-		}()
-
-	Timeout:
-		for {
-			select {
-			case commit := <-r.Commitment:
-				commits = append(commits, commit)
-				if len(commits) == len(keys.Keys) {
-					g.SendVote(id, Vote{
-						Salt:   <-salt,
-						Option: <-option,
-					}, participants, tmpKey, position)
-				}
-			case vote := <-r.Vote:
-				if len(commits) < len(keys.Keys) {
-					// TODO ask for status
-				}
-				votes = append(votes, vote)
-			case <-time.After(NetworkConvergeDuration):
-				break Timeout
-			}
-		}
-
-		// TODO locally compute all votes and display to user -> GUI
+		commonHandler("Voter", g, id, key, keys, r)
 	}
 }
 
@@ -96,31 +49,89 @@ func containsKey(keyArray [][2]*big.Int, publicKey ecdsa.PublicKey) (int, bool) 
 	return -1, false
 }
 
-func MasterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
-	return func(id PollKey, r RunningPollReader) {
-		poll, ok := <-r.Poll
-		if !ok {
-			return
-		}
+func MasterHandler(g *Gossiper) PoolPacketHandler {
+	return func(id PollKey, key ecdsa.PrivateKey, r RunningPollReader) {
+		poll := <-r.Poll
+		log.Println("Master: new poll:", id.String())
 
 		g.SendPoll(id, poll)
 
-		var keys []VoteKey
+		keysMap := make(map[VoteKeyMap]bool)
 	Timeout:
 		for {
 			select {
 			case k := <-r.VoteKey:
-				keys = append(keys, k)
+				keysMap[k.Pack()] = true
 				// TODO check others commits -> bad rep
 			case <-time.After(poll.Duration):
 				break Timeout
 			}
 		}
 
-		g.SendVoteKeys(id, VoteKeys{
-			Keys: keys,
-		})
+		var keys []VoteKey
+		for k, _ := range keysMap {
+			keys = append(keys, k.Unpack())
+		}
 
-		// TODO same handling as VoterHandler
+		voteKeys := VoteKeys{
+			Keys: keys,
+		}
+		g.SendVoteKeys(id, voteKeys)
+		log.Printf("Master: send %d keys", len(keys))
+
+		commonHandler("Master", g, id, key, voteKeys, r)
 	}
+}
+
+func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey, keys VoteKeys, r RunningPollReader) {
+	participants := keys.ToParticipants()
+	g.storeParticipants(id, participants)
+
+	position, ok := containsKey(participants, key.PublicKey)
+	if !ok {
+		log.Printf("%s: not considered for this vote, abort", logName)
+		return // we are not part of this vote
+	}
+
+	commits := make([]Commitment, 0)
+	votes := make([]Vote, 0)
+
+	salt := make(chan [SaltSize]byte)
+	option := make(chan string)
+
+	go func() {
+		o := <-r.LocalVote
+		commit, s := NewCommitment(o)
+		salt <- s
+		option <- o
+		g.SendCommitment(id, commit, participants, key, position)
+		log.Printf("%s: send commit for \"%s\"", logName, o)
+		close(salt)
+		close(option)
+	}()
+
+Timeout:
+	for {
+		select {
+		case commit := <-r.Commitment:
+			commits = append(commits, commit)
+			if len(commits) == len(keys.Keys) {
+				g.SendVote(id, Vote{
+					Salt:   <-salt,
+					Option: <-option,
+				}, participants, key, position)
+				log.Printf("%s: send vote", logName)
+			}
+		case vote := <-r.Vote:
+			if len(commits) < len(keys.Keys) {
+				// TODO ask for status
+			}
+			votes = append(votes, vote)
+		case <-time.After(NetworkConvergeDuration):
+			log.Printf("%s: timeout", logName)
+			break Timeout
+		}
+	}
+
+	// TODO locally compute all votes and display to user -> GUI
 }

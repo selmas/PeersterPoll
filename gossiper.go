@@ -186,7 +186,12 @@ func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
 	s.m[k.Pack()] = w
 	s.Unlock()
 
-	go handler(k, r)
+	key, err := ecdsa.GenerateKey(Curve(), secrand.Reader) // generates vote key
+	if err != nil {
+		panic(err)
+	}
+
+	go handler(k, *key, r)
 }
 
 func (s *RunningPollSet) Send(pkg PollPacket) {
@@ -279,7 +284,7 @@ func NewGossiper(name string, server Server) (*Gossiper, error) {
 		Polls: PollSet{
 			m: make(map[PollKeyMap]PollInfo),
 		},
-		ValidKeys: validKeys,
+		ValidKeys:   validKeys,
 		Reputations: NewReputationInfo(),
 		Status: Status{
 			make(map[Signature]*PollPacket),
@@ -377,7 +382,7 @@ func (g *Gossiper) SendPoll(id PollKey, msg Poll) {
 	g.SendPollPacket(&pkg, &sig, nil)
 }
 
-func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][2]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
+func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][2]*big.Int, tmpKey ecdsa.PrivateKey, pos int) {
 	pkg := PollPacket{
 		ID:         id,
 		Commitment: &msg,
@@ -388,7 +393,7 @@ func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][2]
 		return
 	}
 
-	lrs := linkableRingSignature(input, participants, tmpKey, pos)
+	lrs := linkableRingSignature(input, participants, &tmpKey, pos)
 	g.SendPollPacket(&pkg, &Signature{&lrs, nil}, nil)
 }
 
@@ -437,7 +442,7 @@ func ecSignature(g *Gossiper, poll PollPacket) (Signature, error) {
 	return Signature{nil, &EllipticCurveSignature{*r, *s}}, nil
 }
 
-func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][2]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
+func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][2]*big.Int, tmpKey ecdsa.PrivateKey, pos int) {
 	pkg := PollPacket{
 		ID:   id,
 		Vote: &vote,
@@ -449,7 +454,7 @@ func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][2]*big.Int, t
 		return
 	}
 
-	lrs := linkableRingSignature(input, participants, tmpKey, pos)
+	lrs := linkableRingSignature(input, participants, &tmpKey, pos)
 	g.SendPollPacket(&pkg, &Signature{&lrs, nil}, nil)
 }
 
@@ -535,7 +540,6 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			if !g.SignatureValid(pkg) {
 				log.Println("invalid signature found but not handled")
 				// TODO suspect peer
-				return
 			}
 
 			if pkg.Signature.Linkable != nil {
@@ -614,17 +618,13 @@ func (g *Gossiper) SignatureValid(pkg GossipPacket) bool {
 			log.Printf("unable to encode as json")
 		}
 
-		hash := sha256.New()
-		_, err = hash.Write(input)
-		if err != nil {
-			log.Printf("error generating elliptic curve signature")
-		}
+		hash := sha256.Sum256(input)
 
 		if poll.VoteKey != nil {
-			return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.VoteKey.publicKey, hash.Sum(nil),
+			return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.VoteKey.publicKey, hash[:],
 				&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
 		} else {
-			return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash.Sum(nil),
+			return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash[:],
 				&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
 		}
 	}
