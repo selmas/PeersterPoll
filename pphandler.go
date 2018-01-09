@@ -34,9 +34,9 @@ func (g *Gossiper) storeParticipants(id PollKey, participants [][2]big.Int) {
 	g.Polls.Lock()
 	defer g.Polls.Unlock()
 
-	pollInfos := g.Polls.m[id.Pack()]
-	pollInfos.Participants = participants
-	g.Polls.m[id.Pack()] = pollInfos
+	pollInfo := g.Polls.m[id.Pack()]
+	pollInfo.Participants = participants
+	g.Polls.m[id.Pack()] = pollInfo
 }
 
 func containsKey(keyArray [][2]big.Int, tmpKey ecdsa.PublicKey) (int, bool) {
@@ -71,15 +71,13 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 				if ok {
 					keysMap[k.Pack()] = true
 				}
-
-				// TODO check others commits -> bad rep
 			case <-time.After(poll.Duration):
 				break Timeout
 			}
 		}
 
 		var keys []VoteKey
-		for k, _ := range keysMap {
+		for k := range keysMap {
 			keys = append(keys, k.Unpack())
 		}
 
@@ -122,11 +120,11 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 	}()
 
 	voteSent := false
-	timeouted := false
+	timedout := false
 	for {
 		select {
 		case commit := <-r.Commitment:
-			commits = append(commits, commit)
+			if !timedout{commits = append(commits, commit)} // do not accept commits after timeout, to prevent influencing
 			if len(commits) == len(keys.Keys) {
 				g.SendVote(id, Vote{
 					Salt:   <-salt,
@@ -136,7 +134,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 				voteSent = true
 			}
 		case vote := <-r.Vote:
-			if len(commits) < len(keys.Keys) || timeouted {
+			if len(commits) < len(keys.Keys) || timedout {
 				myStatus := getStatus(g)
 				writeMsgToUDP(g.Server, vote.Sender, nil, &myStatus, nil, nil)
 				// TODO wait for reply (timeout)
@@ -147,7 +145,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 			votes = append(votes, vote.Vote)
 		case <-time.After(NetworkConvergeDuration):
 			log.Printf("%s: timeout", logName)
-			timeouted = true
+			timedout = true
 			if !voteSent {
 				g.SendVote(id, Vote{
 					Salt:   <-salt,
