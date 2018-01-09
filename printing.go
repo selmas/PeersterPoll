@@ -22,9 +22,9 @@ func (pkg PollPacket) Print(clientAddr net.UDPAddr) {
 	fmt.Println(msg)
 }
 
-func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *StatusPacket) {
+func (msg StatusPacket) Print(clientAddr net.UDPAddr) {
 	var str string
-	str += "STATUS from " + addr.String()
+	str += "STATUS from " + clientAddr.String()
 
 	/* TODO for _, s := range msg.Want {
 		str += " poll origin " + s.key.PollOrigin

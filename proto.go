@@ -162,11 +162,11 @@ type GossipPacket struct {
 }
 
 type EllipticCurveSignature struct {
-	r *big.Int
-	s *big.Int
+	R big.Int
+	S big.Int
 }
 
 type Signature struct {
-	linkableRingSig  *LinkableRingSignature
-	ellipticCurveSig *EllipticCurveSignature
+	Linkable *LinkableRingSignature
+	Elliptic *EllipticCurveSignature
 }

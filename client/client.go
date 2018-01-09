@@ -22,13 +22,8 @@ func (s Settings) getUrl(post string) string {
 
 func poll_new(s Settings, args []string) {
 	url := s.getUrl("poll")
-	// TODO hardcoded for now
-	question := "What's the time?"
-	options := []string{
-		"10:25",
-		"10:30",
-		"Time is a weird and purely local definition",
-	}
+	question := args[0]
+	options := args[1:]
 
 	var msg string
 	msg += question

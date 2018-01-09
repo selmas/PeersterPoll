@@ -44,8 +44,9 @@ new_key() {
 
 new_poll() {
 	local port=$1
+	shift
 
-	client -UIPort $1 poll new
+	client -UIPort $port poll new "$@"
 }
 
 log_check() {
@@ -53,6 +54,16 @@ log_check() {
 	local pattern=$2
 
 	grep "$pattern" "$name.log"
+}
+
+log_wait() {
+	local name=$1
+	local pattern=$2
+
+	while ! log_check "$name" "$pattern"
+	do
+		sleep 0.2
+	done
 }
 
 cleanup() {

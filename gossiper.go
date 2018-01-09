@@ -232,12 +232,12 @@ func (g *Gossiper) addPeer(addr net.UDPAddr) {
 func NewServer(address string) Server {
 	addr, err := net.ResolveUDPAddr("udp4", address)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	conn, err := net.ListenUDP("udp4", addr)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	return Server{
@@ -344,7 +344,6 @@ func writeMsgToUDP(server Server, peer *net.UDPAddr, poll *PollPacket, status *S
 		Status:    status,
 	}.ToWire()
 	toSend, err := protobuf.Encode(&msg)
-
 	if err != nil {
 		panic(err)
 	}
@@ -359,7 +358,7 @@ func (g *Gossiper) SendPoll(id PollKey, msg Poll) {
 	}
 	sig, err := ecSignature(g, pkg)
 	if err != nil {
-		return
+		panic(err)
 	}
 	g.SendPollPacket(&pkg, &sig, nil)
 }
@@ -407,7 +406,7 @@ func ecSignature(g *Gossiper, poll PollPacket) (Signature, error) {
 		log.Printf("error generating elliptic curve signature")
 		return Signature{}, err
 	}
-	return Signature{nil, &EllipticCurveSignature{r, s}}, nil
+	return Signature{nil, &EllipticCurveSignature{*r, *s}}, nil
 }
 
 func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
@@ -435,7 +434,7 @@ func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *Signature, fromPeer *net
 
 		writeMsgToUDP(g.Server, peer, msg, nil, sig)
 
-		printFlippedCoin(peer, "rumor")
+		printFlippedCoin(peer, "poll")
 		if rand.Intn(2) == 0 {
 			break
 		}
@@ -505,14 +504,15 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 		if pkg.Poll != nil {
 			poll := *pkg.Poll
 
-			if !signatureValid(g, pkg) || doubleVoted(g, pkg) {
-				// TODO supect peer
+			if !g.SignatureValid(pkg) || doubleVoted(g, pkg) {
+				log.Println("suspect found but not handled")
+				// TODO suspect peer
 				return
 			}
 			poll.Print(fromPeer)
 
 			g.Polls.Store(poll)
-			g.Polls.m[pkg.Poll.ID].Tags[pkg.Signature.linkableRingSig.tag] = *pkg.Poll.Commitment
+			g.Polls.m[pkg.Poll.ID].Tags[pkg.Signature.Linkable.Tag] = *pkg.Poll.Commitment
 
 			if !g.RunningPolls.Has(poll.ID) {
 				g.RunningPolls.Add(poll.ID, VoterHandler(g))
@@ -523,14 +523,16 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 		}
 
 		if pkg.Status != nil {
-			syncStatus(g, fromPeer, *pkg.Status)
+			status := *pkg.Status
+			status.Print(fromPeer)
+			syncStatus(g, fromPeer, status)
 		}
 
 	}
 }
 
 func doubleVoted(g *Gossiper, pkg GossipPacket) bool {
-	tag := pkg.Signature.linkableRingSig.tag
+	tag := pkg.Signature.Linkable.Tag
 	commit, stored := g.Polls.m[pkg.Poll.ID].Tags[tag]
 
 	if stored {
@@ -540,11 +542,11 @@ func doubleVoted(g *Gossiper, pkg GossipPacket) bool {
 	return false
 }
 
-func signatureValid(g *Gossiper, pkg GossipPacket) bool {
+func (g *Gossiper) SignatureValid(pkg GossipPacket) bool {
 	poll := pkg.Poll
 
 	if (poll.Commitment != nil || poll.Vote != nil) && !(poll.Commitment != nil && poll.Vote != nil) {
-		return pkg.Signature.linkableRingSig != nil && verifySig(*pkg.Signature.linkableRingSig, g.Polls.m[pkg.Poll.ID].Participants)
+		return pkg.Signature.Linkable != nil && verifySig(*pkg.Signature.Linkable, g.Polls.m[pkg.Poll.ID].Participants)
 	}
 
 	if poll.PollCommitments != nil || poll.Poll != nil {
@@ -559,8 +561,8 @@ func signatureValid(g *Gossiper, pkg GossipPacket) bool {
 			log.Printf("error generating elliptic curve signature")
 		}
 
-		return pkg.Signature.ellipticCurveSig != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash.Sum(nil),
-			pkg.Signature.ellipticCurveSig.r, pkg.Signature.ellipticCurveSig.s)
+		return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash.Sum(nil),
+			&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
 	}
 
 	return false
@@ -569,7 +571,7 @@ func signatureValid(g *Gossiper, pkg GossipPacket) bool {
 func parseAddr(str string) *net.UDPAddr {
 	addr, err := net.ResolveUDPAddr("udp", str)
 	if err != nil {
-		log.Fatal("invalid peer \"", str, "\": ", err)
+		panic(err)
 	}
 
 	return addr

@@ -11,10 +11,10 @@ import (
 
 // msg contains hash of message to get signed
 type LinkableRingSignature struct {
-	msg []byte
-	c0  []byte
-	s   []*big.Int
-	tag [2]*big.Int
+	Message []byte
+	C0      []byte
+	S       []*big.Int
+	Tag     [2]*big.Int
 }
 
 func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) LinkableRingSignature {
@@ -149,20 +149,20 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool {
 	Hx, Hy := mapToPoint(pubKeys)
 
 	c := make([][]byte, len(L)+1)
-	c[0] = sig.c0
+	c[0] = sig.C0
 
 	// hash(L, Tag, msg, si*G + ci*Yi, si*H + ci*Tag)
 	commonPart := pubKeys
-	commonPart = append(append(commonPart, sig.tag[0].Bytes()...), sig.tag[1].Bytes()...)
-	commonPart = append(commonPart, sig.msg...)
+	commonPart = append(append(commonPart, sig.Tag[0].Bytes()...), sig.Tag[1].Bytes()...)
+	commonPart = append(commonPart, sig.Message...)
 
 	for i := 0; i < len(L); i++ {
-		siGx, siGy := curve.ScalarBaseMult(sig.s[i].Bytes())
+		siGx, siGy := curve.ScalarBaseMult(sig.S[i].Bytes())
 		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
 		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
 
-		siHx, siHy := curve.ScalarMult(Hx, Hy, sig.s[i].Bytes())
-		ciTagx, ciTagy := curve.ScalarMult(sig.tag[0], sig.tag[1], c[i])
+		siHx, siHy := curve.ScalarMult(Hx, Hy, sig.S[i].Bytes())
+		ciTagx, ciTagy := curve.ScalarMult(sig.Tag[0], sig.Tag[1], c[i])
 		siHciTagx, siHciTagy := curve.Add(siHx, siHy, ciTagx, ciTagy)
 
 		hashInput := append(append(commonPart, siGciYix.Bytes()...), siGciYiy.Bytes()...)

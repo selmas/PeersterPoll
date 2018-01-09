@@ -254,28 +254,35 @@ func (msg GossipPacket) ToWire() GossipPacketWire {
 		s = &wired
 	}
 
+	var sig *SignatureWire = nil
+	if msg.Signature != nil {
+		wired := msg.Signature.ToWire()
+		sig = &wired
+	}
+
 	return GossipPacketWire{
 		Poll:      p,
-		Signature: msg.Signature,
+		Signature: sig,
 		Status:    s,
 	}
 }
 
 type GossipPacketWire struct {
 	Poll      *PollPacketWire
-	Signature *Signature // TODO it can't be optional, can it?
+	Signature *SignatureWire
 	Status    *StatusPacketWire
 }
 
 func (msg GossipPacketWire) ToBase() (GossipPacket, error) {
-	ret := GossipPacket{
-		Signature: msg.Signature,
+	var ret GossipPacket
+	retErr := func(err error) (GossipPacket, error) {
+		return ret, errors.New("GossipPacketWire: " + err.Error())
 	}
 
 	if msg.Poll != nil {
 		wire, err := msg.Poll.ToBase()
 		if err != nil {
-			return ret, errors.New("GossipPacketWire: " + err.Error())
+			return retErr(err)
 		}
 		ret.Poll = &wire
 	}
@@ -283,9 +290,17 @@ func (msg GossipPacketWire) ToBase() (GossipPacket, error) {
 	if msg.Status != nil {
 		wire, err := msg.Status.ToBase()
 		if err != nil {
-			return ret, errors.New("GossipPacketWire: " + err.Error())
+			return retErr(err)
 		}
 		ret.Status = &wire
+	}
+
+	if msg.Signature != nil {
+		wire, err := msg.Signature.ToBase()
+		if err != nil {
+			return retErr(err)
+		}
+		ret.Signature = &wire
 	}
 
 	return ret, nil
@@ -317,4 +332,121 @@ func (pkg GossipPacketWire) Check() error {
 	}
 
 	return nil
+}
+
+type EllipticCurveSignatureWire struct {
+	R []byte
+	S []byte
+}
+
+func (msg EllipticCurveSignature) ToWire() EllipticCurveSignatureWire {
+	return EllipticCurveSignatureWire{
+		R: msg.R.Bytes(),
+		S: msg.S.Bytes(),
+	}
+}
+
+func (msg EllipticCurveSignatureWire) ToBase() EllipticCurveSignature {
+	r := new(big.Int).SetBytes(msg.R)
+	s := new(big.Int).SetBytes(msg.S)
+
+	return EllipticCurveSignature{
+		R: *r,
+		S: *s,
+	}
+}
+
+type SignatureWire struct {
+	Linkable *LinkableRingSignatureWire
+	Elliptic *EllipticCurveSignatureWire
+}
+
+func (msg Signature) ToWire() SignatureWire {
+	var l *LinkableRingSignatureWire = nil
+	if msg.Linkable != nil {
+		wired := msg.Linkable.ToWire()
+		l = &wired
+	}
+
+	var e *EllipticCurveSignatureWire = nil
+	if msg.Elliptic != nil {
+		wired := msg.Elliptic.ToWire()
+		e = &wired
+	}
+
+	return SignatureWire{
+		Linkable: l,
+		Elliptic: e,
+	}
+}
+
+func (msg SignatureWire) ToBase() (Signature, error) {
+	var ret Signature
+
+	if msg.Linkable != nil {
+		l, err := msg.Linkable.ToBase()
+		if err != nil {
+			return ret, err
+		}
+		ret.Linkable = &l
+	}
+
+	if msg.Elliptic != nil {
+		e := msg.Elliptic.ToBase()
+		ret.Elliptic = &e
+	}
+
+	return ret, nil
+}
+
+type LinkableRingSignatureWire struct {
+	Message []byte
+	C0      []byte
+	S       [][]byte
+	Tag     [][]byte
+}
+
+func (msg LinkableRingSignature) ToWire() LinkableRingSignatureWire {
+	ss := make([][]byte, len(msg.S))
+	for i, s := range msg.S {
+		ss[i] = s.Bytes()
+	}
+
+	tag := make([][]byte, 2)
+	for i, t := range msg.Tag {
+		tag[i] = t.Bytes()
+	}
+
+	return LinkableRingSignatureWire{
+		Message: msg.Message,
+		C0:      msg.C0,
+		S:       ss,
+		Tag:     tag,
+	}
+}
+
+func (msg LinkableRingSignatureWire) ToBase() (LinkableRingSignature, error) {
+	ret := LinkableRingSignature{
+		Message: msg.Message,
+		C0:      msg.C0,
+	}
+
+	ss := make([]*big.Int, len(msg.S))
+	for i, s := range msg.S {
+		ss[i] = new(big.Int).SetBytes(s)
+	}
+
+	if len(msg.Tag) != 2 {
+		return ret, errors.New("LinkableRingSignatureWire: tag size isn't 2")
+	}
+
+	var tag [2]*big.Int
+	for i, t := range msg.Tag {
+		tag[i] = new(big.Int).SetBytes(t)
+	}
+
+	ret.S = ss
+	ret.Tag = tag
+
+	return ret, nil
 }
