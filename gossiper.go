@@ -43,14 +43,14 @@ type PeerSet struct {
 
 type PollSet struct {
 	sync.RWMutex
-	m map[PollKey]PollInfo
+	m map[PollKeyMap]PollInfo
 }
 
 func (s *PollSet) Has(k PollKey) bool {
 	s.RLock()
 	defer s.RUnlock()
 
-	_, ok := s.m[k]
+	_, ok := s.m[k.Pack()]
 	return ok
 }
 
@@ -58,7 +58,7 @@ func (s *PollSet) Get(k PollKey) PollInfo {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.m[k]
+	return s.m[k.Pack()]
 }
 
 // initialize tags mapping
@@ -66,7 +66,7 @@ func (s *PollSet) Store(pkg PollPacket) {
 	s.Lock()
 	defer s.Unlock()
 
-	info := s.m[pkg.ID]
+	info := s.m[pkg.ID.Pack()]
 
 	if pkg.Poll != nil {
 		poll := *pkg.Poll
@@ -84,7 +84,7 @@ func (s *PollSet) Store(pkg PollPacket) {
 		info.Votes = append(info.Votes, *pkg.Vote)
 	}
 
-	s.m[pkg.ID] = info
+	s.m[pkg.ID.Pack()] = info
 }
 
 // TODO maybe split in two to have voter/server separation
@@ -134,14 +134,14 @@ func (s RunningPollWriter) Send(pkg PollPacket) {
 
 type RunningPollSet struct {
 	sync.RWMutex
-	m map[PollKey]RunningPollWriter
+	m map[PollKeyMap]RunningPollWriter
 }
 
 func (s *RunningPollSet) Has(k PollKey) bool {
 	s.RLock()
 	defer s.RUnlock()
 
-	_, ok := s.m[k]
+	_, ok := s.m[k.Pack()]
 	return ok
 }
 
@@ -151,7 +151,7 @@ func (s *RunningPollSet) Get(k PollKey) RunningPollWriter {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.m[k]
+	return s.m[k.Pack()]
 }
 
 func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
@@ -177,7 +177,7 @@ func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
 	}
 
 	s.Lock()
-	s.m[k] = w
+	s.m[k.Pack()] = w
 	s.Unlock()
 
 	go handler(k, r)
@@ -187,7 +187,7 @@ func (s *RunningPollSet) Send(pkg PollPacket) {
 	s.RLock()
 	defer s.RUnlock()
 
-	r := s.m[pkg.ID]
+	r := s.m[pkg.ID.Pack()]
 	r.Send(pkg)
 }
 
@@ -263,10 +263,10 @@ func NewGossiper(name string, server Server) (*Gossiper, error) {
 			Set: make(map[string]bool),
 		},
 		RunningPolls: RunningPollSet{
-			m: make(map[PollKey]RunningPollWriter),
+			m: make(map[PollKeyMap]RunningPollWriter),
 		},
 		Polls: PollSet{
-			m: make(map[PollKey]PollInfo),
+			m: make(map[PollKeyMap]PollInfo),
 		},
 		ValidKeys:   validKeys,
 		Reputations: make(RepOpinions),
@@ -443,7 +443,7 @@ func getStatus(g *Gossiper) StatusPacket {
 	g.Polls.Lock()
 	defer g.Polls.Unlock()
 
-	infos := make(map[PollKey]ShareablePollInfo)
+	infos := make(map[PollKeyMap]ShareablePollInfo)
 
 	for id, info := range g.Polls.m {
 		infos[id] = info.ShareablePollInfo
@@ -514,7 +514,7 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 					// TODO suspect peer
 					return
 				}
-				g.Polls.m[pkg.Poll.ID].Tags[pkg.Signature.Linkable.Tag] = *pkg.Poll.Commitment
+				g.Polls.m[pkg.Poll.ID.Pack()].Tags[pkg.Signature.Linkable.Tag] = *pkg.Poll.Commitment
 			}
 
 			poll.Print(fromPeer)
@@ -531,7 +531,6 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 
 		if pkg.Status != nil {
 			status := *pkg.Status
-			status.Print(fromPeer)
 			syncStatus(g, fromPeer, status)
 		}
 
@@ -540,7 +539,7 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 
 func doubleVoted(g *Gossiper, pkg GossipPacket) bool {
 	tag := pkg.Signature.Linkable.Tag
-	commit, stored := g.Polls.m[pkg.Poll.ID].Tags[tag]
+	commit, stored := g.Polls.m[pkg.Poll.ID.Pack()].Tags[tag]
 
 	if stored {
 		return !(string(commit.Hash[:]) == string(pkg.Poll.Commitment.Hash[:]))
@@ -553,7 +552,7 @@ func (g *Gossiper) SignatureValid(pkg GossipPacket) bool {
 	poll := pkg.Poll
 
 	if (poll.Commitment != nil || poll.Vote != nil) && !(poll.Commitment != nil && poll.Vote != nil) {
-		return pkg.Signature.Linkable != nil && verifySig(*pkg.Signature.Linkable, g.Polls.m[pkg.Poll.ID].Participants)
+		return pkg.Signature.Linkable != nil && verifySig(*pkg.Signature.Linkable, g.Polls.m[pkg.Poll.ID.Pack()].Participants)
 	}
 
 	if poll.PollCommitments != nil || poll.Poll != nil {
@@ -595,7 +594,7 @@ func AntiEntropyGossip(gossiper *Gossiper) {
 			continue
 		}
 
-		printFlippedCoin(peer, "status")
+		//printFlippedCoin(peer, "status")
 		status := getStatus(gossiper)
 		writeMsgToUDP(gossiper.Server, peer, nil, &status, nil)
 	}

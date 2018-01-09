@@ -36,8 +36,8 @@ func apiStartPoll(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 			Poll: &Poll{
 				Question:  question,
 				Options:   options,
-				StartTime: time.Now(),                     // TODO user customizable
-				Duration:  time.Duration(1 * time.Minute), // TODO user customizable
+				StartTime: time.Now(),                      // TODO user customizable
+				Duration:  time.Duration(10 * time.Second), // TODO user customizable
 			},
 		}
 
@@ -97,9 +97,10 @@ func apiVoteForPoll(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 		}
 
 		// TODO check that option is vote
-		g.RunningPolls.Get(id).LocalVote <- option
-
-		log.Println("My vote:", option)
+		// might block so go!
+		go func() {
+			g.RunningPolls.Get(id).LocalVote <- option
+		}()
 	}
 }
 
@@ -139,7 +140,7 @@ func apiGetPolls(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 
 		infos := make([]string, 0)
 		for id, _ := range g.Polls.m {
-			infos = append(infos, id.String())
+			infos = append(infos, id.Unpack().String())
 		}
 
 		bytes, err := json.Marshal(infos)

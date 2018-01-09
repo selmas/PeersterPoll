@@ -16,3 +16,5 @@ poll_list_contains_id 10000 "$id"
 
 vote_put 10000 "$id" "Soon food!"
 vote_put 10001 "$id" "Soon food!"
+
+sleep 15

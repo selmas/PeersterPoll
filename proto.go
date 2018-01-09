@@ -149,7 +149,7 @@ type PollPacket struct {
 }
 
 type StatusPacket struct {
-	Infos map[PollKey]ShareablePollInfo
+	Infos map[PollKeyMap]ShareablePollInfo
 }
 
 type GossipPacket struct {

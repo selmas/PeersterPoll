@@ -68,9 +68,9 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 
 func storeParticipants(g *Gossiper, id PollKey, participants [][]*big.Int) {
 	g.Polls.Lock()
-	pollInfos := g.Polls.m[id]
+	pollInfos := g.Polls.m[id.Pack()]
 	pollInfos.Participants = participants
-	g.Polls.m[id] = pollInfos
+	g.Polls.m[id.Pack()] = pollInfos
 	g.Polls.Unlock()
 }
 

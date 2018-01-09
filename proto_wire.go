@@ -201,7 +201,7 @@ func (pkg StatusPacket) toWire() StatusPacketWire {
 	infos := make(map[string]ShareablePollInfo)
 
 	for id, info := range pkg.Infos {
-		infos[id.String()] = info
+		infos[id.Unpack().String()] = info
 	}
 
 	return StatusPacketWire{
@@ -211,12 +211,12 @@ func (pkg StatusPacket) toWire() StatusPacketWire {
 
 func (pkg StatusPacketWire) ToBase() StatusPacket {
 	ret := StatusPacket{
-		Infos: make(map[PollKey]ShareablePollInfo),
+		Infos: make(map[PollKeyMap]ShareablePollInfo),
 	}
 
 	for k, info := range pkg.Infos {
 		id, _ := PollKeyFromString(k) // check()'ed before
-		ret.Infos[id] = info
+		ret.Infos[id.Pack()] = info
 	}
 
 	return ret
