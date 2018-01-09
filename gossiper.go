@@ -71,6 +71,7 @@ func (s *PollSet) Store(pkg PollPacket) {
 		// TODO poll != *info.Poll -> bad rep
 
 		info.Poll = &poll
+		info.Tags = make(map[[2]*big.Int]Commitment)
 	}
 
 	if pkg.Commitment != nil {
@@ -501,7 +502,8 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			poll := *pkg.Poll
 
 			if !signatureValid(pkg, *g) || doubleVoted(pkg, *g){
-				// TODO supect peer
+				// TODO suspect peer
+				g.Reputations.Suspect(fromPeer)
 				return
 			}
 			poll.Print(fromPeer)
