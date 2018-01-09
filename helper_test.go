@@ -85,6 +85,7 @@ func DummyGossiper() *Gossiper {
 		Server{},
 		[]ecdsa.PublicKey{},
 		NewReputationInfo(),
+		Status{},
 	}
 }
 

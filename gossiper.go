@@ -89,13 +89,18 @@ func (s *PollSet) Store(pkg PollPacket) {
 }
 
 // TODO maybe split in two to have voter/server separation
+type VoteAndSender struct {
+	Vote   Vote
+	Sender *net.UDPAddr
+}
+
 type RunningPollReader struct {
 	Poll       <-chan Poll
 	LocalVote  <-chan string
 	VoteKey    <-chan VoteKey
 	VoteKeys   <-chan VoteKeys
 	Commitment <-chan Commitment
-	Vote       <-chan Vote
+	Vote       <-chan VoteAndSender
 }
 
 type RunningPollWriter struct {

@@ -69,7 +69,7 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 		}
 
 		var keys []VoteKey
-		for k, _ := range keysMap {
+		for k := range keysMap {
 			keys = append(keys, k.Unpack())
 		}
 
@@ -124,9 +124,14 @@ Timeout:
 			}
 		case vote := <-r.Vote:
 			if len(commits) < len(keys.Keys) {
-				// TODO ask for status
+				myStatus := getStatus(g)
+				writeMsgToUDP(g.Server, vote.Sender, nil, &myStatus, nil, nil)
+				// TODO wait for reply (timeout)
+				if len(commits) < len(keys.Keys){
+					// TODO suspect peer
+				}
 			}
-			votes = append(votes, vote)
+			votes = append(votes, vote.Vote)
 		case <-time.After(NetworkConvergeDuration):
 			log.Printf("%s: timeout", logName)
 			break Timeout

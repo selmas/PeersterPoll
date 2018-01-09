@@ -139,7 +139,7 @@ func apiGetPolls(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 		defer g.Polls.RLock()
 
 		infos := make([]string, 0)
-		for id, _ := range g.Polls.m {
+		for id := range g.Polls.m {
 			infos = append(infos, id.Unpack().String())
 		}
 

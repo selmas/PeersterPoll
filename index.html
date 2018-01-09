@@ -104,7 +104,7 @@
             return function (data) {
                 data.forEach(function (item) {
                     if (!ongoingPolls.has(item)) {
-                        ongoingPolls.set(item, "voting")
+                        ongoingPolls.set(item, "voting");
                         create_new_poll(item);
                     }
                 });

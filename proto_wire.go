@@ -223,7 +223,7 @@ func (pkg StatusPacketWire) check() error {
 		return errors.New("StatusPacketWire: " + err.Error())
 	}
 
-	for k, _ := range pkg.Infos {
+	for k := range pkg.Infos {
 		_, err := PollKeyFromString(k)
 		if err != nil {
 			return errRet(err)
