@@ -23,7 +23,7 @@ type ShareablePollInfo struct {
 	Participants [][2]big.Int
 	Commitments  []Commitment
 	Votes        []Vote
-	Tags         map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
+	Tags         map[[2]*big.Int][]Commitment // mapping from tag to []commitment to detect double voting
 }
 
 type PollInfo struct {
@@ -74,7 +74,7 @@ func (s *PollSet) Store(pkg PollPacket) {
 		// TODO poll != *info.Poll -> bad rep
 
 		info.Poll = &poll
-		info.Tags = make(map[[2]*big.Int]Commitment)
+		info.Tags = make(map[[2]*big.Int][]Commitment)
 	}
 
 	if pkg.Commitment != nil {
@@ -549,6 +549,7 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			if !g.SignatureValid(pkg) {
 				log.Println("invalid signature found but not handled")
 				// TODO suspect peer
+				return
 			}
 
 			if pkg.Signature.Linkable != nil {
@@ -557,7 +558,14 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 					// TODO suspect peer
 					return
 				}
-				g.Polls.m[pkg.Poll.ID.Pack()].Tags[pkg.Signature.Linkable.Tag] = *pkg.Poll.Commitment
+
+				tags, ok := g.Polls.m[pkg.Poll.ID.Pack()].Tags[pkg.Signature.Linkable.Tag]
+				if ok {
+					tags = append(tags, *pkg.Poll.Commitment)
+				} else {
+					tags = []Commitment{*pkg.Poll.Commitment}
+				}
+				g.Polls.m[pkg.Poll.ID.Pack()].Tags[pkg.Signature.Linkable.Tag] = tags
 			}
 
 			poll.Print(fromPeer)
@@ -607,8 +615,8 @@ func doubleVoted(g *Gossiper, pkg GossipPacket) bool {
 	tag := pkg.Signature.Linkable.Tag
 	commit, stored := g.Polls.m[pkg.Poll.ID.Pack()].Tags[tag]
 
-	if stored {
-		return !(string(commit.Hash[:]) == string(pkg.Poll.Commitment.Hash[:]))
+	if stored && len(commit) == 1{
+		return !(string(commit[0].Hash[:]) == string(pkg.Poll.Commitment.Hash[:]))
 	}
 
 	return false
