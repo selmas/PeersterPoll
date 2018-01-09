@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"errors"
-	"log"
 	"math/big"
 	"math/rand"
 	"strconv"
@@ -15,14 +14,6 @@ import (
 type PollKey struct {
 	Origin ecdsa.PublicKey
 	ID     uint64
-}
-
-func (msg PollKey) Check() error {
-	if msg.Origin.X == nil || msg.Origin.Y == nil {
-		log.Println("empty origin") // TODO bad rep
-	}
-
-	return nil
 }
 
 const PollKeySep = "|"
@@ -73,27 +64,11 @@ func (p Poll) IsTooLate() bool {
 	return p.StartTime.Add(p.Duration).Before(time.Now())
 }
 
-func (msg Poll) Check() error {
-	if msg.Question == "" {
-		log.Println("no question")
-	}
-
-	if len(msg.Options) == 0 {
-		log.Println("no choices")
-	}
-
-	return nil // TODO
-}
-
 const SaltSize = 20
 
 // TODO not here, only used with voting
 type Commitment struct {
 	Hash [sha256.Size]byte
-}
-
-func (msg Commitment) Check() error {
-	return nil
 }
 
 func NewCommitment(answer string) Commitment {
@@ -114,17 +89,6 @@ func NewCommitment(answer string) Commitment {
 
 type PollCommitments struct {
 	Commitments []Commitment
-}
-
-func (msg PollCommitments) Check() error {
-	for _, v := range msg.Commitments {
-		err := v.Check()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (msg PollCommitments) Has(c Commitment) bool {
@@ -150,7 +114,6 @@ type PollPacket struct {
 	Vote            *Vote
 }
 
-// TODO warn if asked for same key in separated round -> bad rep
 type StatusPacket struct {
 	Infos map[PollKey]ShareablePollInfo
 }

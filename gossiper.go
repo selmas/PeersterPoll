@@ -311,12 +311,7 @@ func RunServer(gossiper *Gossiper, server Server, dispatcher Dispatcher) {
 			return
 		}
 
-		pkg, err := msg.ToBase()
-		if err != nil {
-			log.Println("badly formatted GossipPacketWire received:", err)
-			return
-		}
-
+		pkg := msg.ToBase()
 		go dispatcher(*peerAddr, pkg)
 	}
 }
@@ -343,6 +338,11 @@ func writeMsgToUDP(server Server, peer *net.UDPAddr, poll *PollPacket, status *S
 		Signature: signature,
 		Status:    status,
 	}.ToWire()
+	err := msg.Check()
+	if err != nil {
+		panic(err)
+	}
+
 	toSend, err := protobuf.Encode(&msg)
 	if err != nil {
 		panic(err)
