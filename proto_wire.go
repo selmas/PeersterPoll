@@ -39,7 +39,7 @@ func (msg PollKey) toWire() PollKeyWire {
 	}
 }
 
-func (msg PollKeyWire) ToBase() PollKey {
+func (msg PollKeyWire) toBase() PollKey {
 	return PollKey{
 		Origin: msg.Origin.toEcdsa(),
 		ID:     msg.ID,
@@ -65,7 +65,7 @@ func (msg Commitment) toWire() CommitmentWire {
 	}
 }
 
-func (msg CommitmentWire) ToBase() Commitment {
+func (msg CommitmentWire) toBase() Commitment {
 	var c Commitment
 	copy(c.Hash[:], msg.Hash)
 	return c
@@ -91,7 +91,7 @@ func (msg Vote) toWire() VoteWire {
 	}
 }
 
-func (msg VoteWire) ToBase() Vote {
+func (msg VoteWire) toBase() Vote {
 	var v Vote
 	copy(v.Salt[:], msg.Salt)
 	return v
@@ -182,11 +182,11 @@ func (msg PollPacket) toWire() PollPacketWire {
 	}
 }
 
-func (msg PollPacketWire) ToBase() PollPacket {
+func (msg PollPacketWire) toBase() PollPacket {
 	const head = "GossipPacketWire: "
 
 	ret := PollPacket{
-		ID:   msg.ID.ToBase(),
+		ID:   msg.ID.toBase(),
 		Poll: msg.Poll,
 	}
 
@@ -201,58 +201,57 @@ func (msg PollPacketWire) ToBase() PollPacket {
 	}
 
 	if msg.Commitment != nil {
-		wired := msg.Commitment.ToBase()
+		wired := msg.Commitment.toBase()
 		ret.Commitment = &wired
 	}
 
 	if msg.Vote != nil {
-		wired := msg.Vote.ToBase()
+		wired := msg.Vote.toBase()
 		ret.Vote = &wired
 	}
 
 	return ret
 }
 
-// nice protobuf, do not support map with any type
 type StatusPacketWire struct {
-	Infos map[string]ShareablePollInfo
+	PollPkts       map[SignatureWire]bool
+	ReputationPkts map[SignatureWire]bool
 }
 
 func (pkg StatusPacketWire) check() error {
-	errRet := func(err error) error {
-		return errors.New("StatusPacketWire: " + err.Error())
-	}
-
-	for k := range pkg.Infos {
-		_, err := PollKeyFromString(k)
-		if err != nil {
-			return errRet(err)
-		}
-	}
-
 	return nil
 }
 
 func (pkg StatusPacket) toWire() StatusPacketWire {
-	infos := make(map[string]ShareablePollInfo)
+	polls := make(map[SignatureWire]bool)
+	reps := make(map[SignatureWire]bool)
 
-	for id, info := range pkg.Infos {
-		infos[id.Unpack().String()] = info
+	for p, _ := range pkg.PollPkts {
+		polls[p.toWire()] = true
+	}
+
+	for r, _ := range pkg.ReputationPkts {
+		reps[r.toWire()] = true
 	}
 
 	return StatusPacketWire{
-		Infos: infos,
+		PollPkts:       polls,
+		ReputationPkts: reps,
 	}
 }
 
-func (pkg StatusPacketWire) ToBase() StatusPacket {
+func (pkg StatusPacketWire) toBase() StatusPacket {
 	ret := StatusPacket{
-		Infos: make(map[PollKeyMap]ShareablePollInfo),
+		PollPkts:       make(map[Signature]bool),
+		ReputationPkts: make(map[Signature]bool),
 	}
 
-	for k, info := range pkg.Infos {
-		id, _ := PollKeyFromString(k) // check()'ed before
-		ret.Infos[id.Pack()] = info
+	for p, _ := range pkg.PollPkts {
+		ret.PollPkts[p.toBase()] = true
+	}
+
+	for r, _ := range pkg.ReputationPkts {
+		ret.ReputationPkts[r.toBase()] = true
 	}
 
 	return ret
@@ -338,17 +337,17 @@ func (msg GossipPacketWire) ToBase() GossipPacket {
 	var ret GossipPacket
 
 	if msg.Poll != nil {
-		wire := msg.Poll.ToBase()
+		wire := msg.Poll.toBase()
 		ret.Poll = &wire
 	}
 
 	if msg.Status != nil {
-		wire := msg.Status.ToBase()
+		wire := msg.Status.toBase()
 		ret.Status = &wire
 	}
 
 	if msg.Signature != nil {
-		wire := msg.Signature.ToBase()
+		wire := msg.Signature.toBase()
 		ret.Signature = &wire
 	}
 
@@ -367,7 +366,7 @@ func (msg EllipticCurveSignature) toWire() EllipticCurveSignatureWire {
 	}
 }
 
-func (msg EllipticCurveSignatureWire) ToBase() EllipticCurveSignature {
+func (msg EllipticCurveSignatureWire) toBase() EllipticCurveSignature {
 	r := new(big.Int).SetBytes(msg.R)
 	s := new(big.Int).SetBytes(msg.S)
 
@@ -415,16 +414,16 @@ func (msg Signature) toWire() SignatureWire {
 	}
 }
 
-func (msg SignatureWire) ToBase() Signature {
+func (msg SignatureWire) toBase() Signature {
 	var ret Signature
 
 	if msg.Linkable != nil {
-		l := msg.Linkable.ToBase()
+		l := msg.Linkable.toBase()
 		ret.Linkable = &l
 	}
 
 	if msg.Elliptic != nil {
-		e := msg.Elliptic.ToBase()
+		e := msg.Elliptic.toBase()
 		ret.Elliptic = &e
 	}
 
@@ -465,7 +464,7 @@ func (msg LinkableRingSignature) toWire() LinkableRingSignatureWire {
 	}
 }
 
-func (msg LinkableRingSignatureWire) ToBase() LinkableRingSignature {
+func (msg LinkableRingSignatureWire) toBase() LinkableRingSignature {
 	ret := LinkableRingSignature{
 		Message: msg.Message,
 		C0:      msg.C0,

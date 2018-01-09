@@ -23,7 +23,7 @@ type ShareablePollInfo struct {
 	Participants [][2]*big.Int
 	Commitments  []Commitment
 	Votes        []Vote
-	Tags     	 map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
+	Tags         map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
 }
 
 type PollInfo struct {
@@ -463,7 +463,6 @@ func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][2]*big.Int, t
 	g.SendPollPacket(&pkg, &Signature{&lrs, nil}, nil)
 }
 
-
 func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *Signature, fromPeer *net.UDPAddr) {
 	for {
 		peer := getRandomPeer(&g.Peers, fromPeer)
@@ -484,13 +483,13 @@ func getStatus(g *Gossiper) StatusPacket {
 	g.Polls.Lock()
 	defer g.Polls.Unlock()
 
-	var signatures map[Signature]bool
-	for sig, := range g.Status.PktStatus {
+	signatures := make(map[Signature]bool)
+	for sig := range g.Status.PktStatus {
 		signatures[sig] = true
 	}
 
-	var reputations map[Signature]bool
-	for rep, := range g.Status.ReputationStatus {
+	reputations := make(map[Signature]bool)
+	for rep := range g.Status.ReputationStatus {
 		reputations[rep] = true
 	}
 
@@ -503,22 +502,22 @@ func getStatus(g *Gossiper) StatusPacket {
 func syncStatus(g *Gossiper, peer net.UDPAddr, rcvStatus StatusPacket) {
 	// check if peer is missing something and send it to him
 	myStatus := getStatus(g)
-	for sig,  := range myStatus.ReputationPkts {
+	for sig := range myStatus.ReputationPkts {
 		_, exist := rcvStatus.ReputationPkts[sig]
 		if !exist {
-			g.SendReputationPacket(g.Status.ReputationStatus[sig],&sig,&peer)
+			g.SendReputationPacket(g.Status.ReputationStatus[sig], &sig, &peer)
 		}
 	}
 
 	for sig := range myStatus.PollPkts {
 		_, exist := rcvStatus.PollPkts[sig]
 		if !exist {
-			g.SendPollPacket(g.Status.PktStatus[sig],&sig,&peer)
+			g.SendPollPacket(g.Status.PktStatus[sig], &sig, &peer)
 		}
 	}
 
 	// check if I am missing something and request it
-	for rep,  := range rcvStatus.ReputationPkts {
+	for rep := range rcvStatus.ReputationPkts {
 		_, exist := myStatus.ReputationPkts[rep]
 		if !exist {
 			writeMsgToUDP(g.Server, &peer, nil, &myStatus, nil, nil)

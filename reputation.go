@@ -1,13 +1,13 @@
 package pollparty
 
 import (
-	"net"
-	"math/rand"
-	"encoding/json"
-	"log"
-	"crypto/sha256"
 	"crypto/ecdsa"
 	secrand "crypto/rand" // alias needed as we import two libraries with name "rand"
+	"crypto/sha256"
+	"encoding/json"
+	"log"
+	"math/rand"
+	"net"
 	"reflect"
 )
 
@@ -265,7 +265,7 @@ func (msg ReputationPacket) ToWire() ReputationPacketWire {
 
 func (msg ReputationPacketWire) ToBase() ReputationPacket {
 	return ReputationPacket{
-		PollID:   msg.PollID.ToBase(),
+		PollID:   msg.PollID.toBase(),
 		Opinions: msg.Opinions,
 		Signer:   msg.Signer.toEcdsa(),
 	}
