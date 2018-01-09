@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const NetworkConvergeDuration = time.Duration(10) * time.Second
+const NetworkConvergeDuration = time.Duration(3) * time.Second
 
 type PoolPacketHandler func(PollKey, ecdsa.PrivateKey, RunningPollReader)
 
@@ -107,6 +107,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 
 	go func() {
 		o := <-r.LocalVote
+		log.Printf("%s: got local vote for \"%s\"", logName, o)
 		commit, s := NewCommitment(o)
 		salt <- s
 		option <- o
@@ -117,7 +118,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 	}()
 
 	voteSent := false
-Timeout:
+	timeouted := false
 	for {
 		select {
 		case commit := <-r.Commitment:
@@ -131,7 +132,7 @@ Timeout:
 				voteSent = true
 			}
 		case vote := <-r.Vote:
-			if len(commits) < len(keys.Keys) {
+			if len(commits) < len(keys.Keys) || timeouted {
 				myStatus := getStatus(g)
 				writeMsgToUDP(g.Server, vote.Sender, nil, &myStatus, nil, nil)
 				// TODO wait for reply (timeout)
@@ -142,13 +143,14 @@ Timeout:
 			votes = append(votes, vote.Vote)
 		case <-time.After(NetworkConvergeDuration):
 			log.Printf("%s: timeout", logName)
+			timeouted = true
 			if !voteSent {
 				g.SendVote(id, Vote{
 					Salt:   <-salt,
 					Option: <-option,
 				}, participants, key, position)
+				log.Printf("%s: send vote at timeout", logName)
 			}
-			break Timeout
 		}
 	}
 
