@@ -53,7 +53,7 @@ log_check() {
 	local name=$1
 	local pattern=$2
 
-	grep "$pattern" "$name.log"
+	grep "$pattern" "$name.log" > /dev/null
 }
 
 log_wait() {

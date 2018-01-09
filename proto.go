@@ -46,7 +46,7 @@ func PollKeyFromString(packed string) (PollKey, error) {
 	}
 
 	ret = PollKey{
-		Origin: ecdsa.PublicKey{Curve: curve, X: x, Y: y},
+		Origin: ecdsa.PublicKey{Curve: Curve(), X: x, Y: y},
 		ID:     id,
 	}
 

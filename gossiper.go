@@ -104,8 +104,6 @@ type RunningPollWriter struct {
 	Votes           chan<- Vote
 }
 
-var curve elliptic.Curve
-
 func (s RunningPollWriter) Send(pkg PollPacket) {
 
 	if pkg.Poll != nil {
@@ -504,15 +502,24 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 		if pkg.Poll != nil {
 			poll := *pkg.Poll
 
-			if !g.SignatureValid(pkg) || doubleVoted(g, pkg) {
-				log.Println("suspect found but not handled")
+			if !g.SignatureValid(pkg) {
+				log.Println("invalid signature found but not handled")
 				// TODO suspect peer
 				return
 			}
+
+			if pkg.Signature.Linkable != nil {
+				if doubleVoted(g, pkg) {
+					log.Println("double vote but not handled")
+					// TODO suspect peer
+					return
+				}
+				g.Polls.m[pkg.Poll.ID].Tags[pkg.Signature.Linkable.Tag] = *pkg.Poll.Commitment
+			}
+
 			poll.Print(fromPeer)
 
 			g.Polls.Store(poll)
-			g.Polls.m[pkg.Poll.ID].Tags[pkg.Signature.Linkable.Tag] = *pkg.Poll.Commitment
 
 			if !g.RunningPolls.Has(poll.ID) {
 				g.RunningPolls.Add(poll.ID, VoterHandler(g))

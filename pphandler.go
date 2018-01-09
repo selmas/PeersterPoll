@@ -22,7 +22,7 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 		assert(len(poll.Options) > 0)
 		option := poll.Options[0]
 
-		tmpKeyPair, err := ecdsa.GenerateKey(curve, rand.Reader) // generates key pair
+		tmpKeyPair, err := ecdsa.GenerateKey(Curve(), rand.Reader) // generates key pair
 		if err != nil {
 			return
 		}
