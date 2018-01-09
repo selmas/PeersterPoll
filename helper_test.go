@@ -2,7 +2,6 @@ package pollparty
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	crypto "crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -15,11 +14,11 @@ import (
 func TestValidECSignature(t *testing.T) {
 	g := DummyGossiper()
 	pkg := PollPacket{
-		ID:   PollKey{&g.KeyPair.PublicKey, uint64(0)},
+		ID:   PollKey{g.KeyPair.PublicKey, uint64(0)},
 		Poll: DummyPoll(),
 	}
 
-	sig, err := ecSignature(pkg, g)
+	sig, err := ecSignature(g, pkg)
 	if err != nil {
 		return
 	}
@@ -30,16 +29,16 @@ func TestValidECSignature(t *testing.T) {
 		Status:    nil,
 	}
 
-	if !signatureValid(msg, g) {
-		t.Errorf("Cannot verify generated signature, \ns: %d\nr: %d", sig.ellipticCurveSig.s,
-			sig.ellipticCurveSig.r)
+	if !g.SignatureValid(msg) {
+		t.Errorf("Cannot verify generated signature, \ns: %d\nr: %d", sig.Elliptic.S,
+			sig.Elliptic.R)
 	}
 }
 
 func TestValidLinkableRingSignature(t *testing.T) {
 	g := DummyGossiper()
 	poll := PollPacket{
-		ID:         PollKey{&g.KeyPair.PublicKey, uint64(0)},
+		ID:         PollKey{g.KeyPair.PublicKey, uint64(0)},
 		Commitment: &Commitment{},
 	}
 
@@ -63,19 +62,19 @@ func TestValidLinkableRingSignature(t *testing.T) {
 		Status:    nil,
 	}
 
-	if !signatureValid(msg, g) {
+	if !g.SignatureValid(msg) {
 		t.Errorf("Cannot verify generated linkable ring signature")
 	}
 }
 
-func DummyGossiper() Gossiper {
-	curve = elliptic.P256()
-	key, err := ecdsa.GenerateKey(curve, crypto.Reader)
+func DummyGossiper() *Gossiper {
+	key, err := ecdsa.GenerateKey(Curve(), crypto.Reader)
 	if err != nil {
 		fmt.Printf("error generating key pair")
 	}
 
-	return Gossiper{sync.RWMutex{},
+	return &Gossiper{
+		sync.RWMutex{},
 		"name",
 		uint64(0),
 		*key,
@@ -84,6 +83,7 @@ func DummyGossiper() Gossiper {
 		PollSet{},
 		Server{},
 		[]ecdsa.PublicKey{},
+		NewReputationInfo(),
 	}
 }
 

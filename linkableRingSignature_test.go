@@ -2,16 +2,12 @@ package pollparty
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
-	"errors"
 	"math/big"
 	"testing"
 )
 
 func TestMapToPointDeterministic(t *testing.T) {
-	curve = elliptic.P256()
-
 	input := []byte("Test input")
 
 	X1, Y1 := mapToPoint(input)
@@ -25,8 +21,6 @@ func TestMapToPointDeterministic(t *testing.T) {
 }
 
 func TestDifferentInputMapsToDifferentPoints(t *testing.T) {
-	curve = elliptic.P256()
-
 	input1 := []byte("Test input 1")
 	input2 := []byte("Test input 2")
 
@@ -39,12 +33,10 @@ func TestDifferentInputMapsToDifferentPoints(t *testing.T) {
 }
 
 func TestMapToPointReturnsPointOnCurve(t *testing.T) {
-	curve = elliptic.P256()
-
 	input := []byte("Test input")
 	X1, Y1 := mapToPoint(input)
 
-	if !curve.IsOnCurve(X1, Y1) {
+	if !Curve().IsOnCurve(X1, Y1) {
 		t.Errorf("Point not on curve, got:\n X = %d \n tag = %d", X1, Y1)
 	}
 }
@@ -125,7 +117,7 @@ func TestVerifyInvalidSignature(t *testing.T) {
 	L := DummyPublicKeyArray(gossiper, pos, numPubKey)
 
 	lrs := linkableRingSignature(msg, L, &gossiper.KeyPair, pos)
-	lrs.s[0] = lrs.s[1] // messing with some values
+	lrs.S[0] = lrs.S[1] // messing with some values
 
 	if verifySig(lrs, L) {
 		t.Errorf("Verified invalid signautre")
@@ -133,24 +125,20 @@ func TestVerifyInvalidSignature(t *testing.T) {
 }
 
 // inspired by https://stackoverflow.com/questions/7703251/slice-of-slices-types
-func initTwoDimArray(dx, dy int) [][]*big.Int {
-	array := make([][]*big.Int, dy)
-	for i := range array {
-		array[i] = make([]*big.Int, dx)
-	}
-	return array
+func initTwoDimArray(dy int) [][2]*big.Int {
+	return make([][2]*big.Int, dy)
 }
 
-func DummyPublicKeyArray(g Gossiper, pos int, numPubKey int) [][]*big.Int {
-	L := initTwoDimArray(2, numPubKey)
+func DummyPublicKeyArray(g *Gossiper, pos int, numPubKey int) [][2]*big.Int {
+	L := initTwoDimArray(numPubKey)
 	for i := 0; i < numPubKey; i++ {
 		if i == pos {
 			L[pos][0] = g.KeyPair.X
 			L[pos][1] = g.KeyPair.Y
 		} else {
-			keyPair, err := ecdsa.GenerateKey(curve, crypto.Reader) // generates key pair
+			keyPair, err := ecdsa.GenerateKey(Curve(), crypto.Reader) // generates key pair
 			if err != nil {
-				errors.New("Elliptic Curve Generation: " + err.Error())
+				panic(err)
 			}
 			L[i][0] = keyPair.X
 			L[i][1] = keyPair.Y
