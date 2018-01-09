@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"errors"
-	"log"
 	"math/big"
 	"math/rand"
 	"strconv"
@@ -17,12 +16,38 @@ type PollKey struct {
 	ID     uint64
 }
 
-func (msg PollKey) Check() error {
-	if msg.Origin.X == nil || msg.Origin.Y == nil {
-		log.Println("empty origin") // TODO bad rep
+type PollKeyMap struct {
+	X  string
+	Y  string
+	ID uint64
+}
+
+const PollKeyMapPackBase = 36 // len(0-9) + len(a-z)
+func (k PollKey) Pack() PollKeyMap {
+	return PollKeyMap{
+		X:  k.Origin.X.Text(PollKeyMapPackBase),
+		Y:  k.Origin.Y.Text(PollKeyMapPackBase),
+		ID: k.ID,
+	}
+}
+
+func (k PollKeyMap) Unpack() PollKey {
+	// TODO we don't handle errors, as it should be safe world
+	x, _ := new(big.Int).SetString(k.X, PollKeyMapPackBase)
+	y, _ := new(big.Int).SetString(k.Y, PollKeyMapPackBase)
+
+	if x == nil || y == nil {
+		panic("fail to unpack")
 	}
 
-	return nil
+	return PollKey{
+		Origin: ecdsa.PublicKey{
+			Curve: Curve(),
+			X:     x,
+			Y:     y,
+		},
+		ID: k.ID,
+	}
 }
 
 const PollKeySep = "|"
@@ -55,7 +80,7 @@ func PollKeyFromString(packed string) (PollKey, error) {
 	}
 
 	ret = PollKey{
-		Origin: ecdsa.PublicKey{Curve: curve, X: x, Y: y},
+		Origin: ecdsa.PublicKey{Curve: Curve(), X: x, Y: y},
 		ID:     id,
 	}
 
@@ -73,27 +98,11 @@ func (p Poll) IsTooLate() bool {
 	return p.StartTime.Add(p.Duration).Before(time.Now())
 }
 
-func (msg Poll) Check() error {
-	if msg.Question == "" {
-		log.Println("no question")
-	}
-
-	if len(msg.Options) == 0 {
-		log.Println("no choices")
-	}
-
-	return nil // TODO
-}
-
 const SaltSize = 20
 
 // TODO not here, only used with voting
 type Commitment struct {
 	Hash [sha256.Size]byte
-}
-
-func (msg Commitment) Check() error {
-	return nil
 }
 
 func NewCommitment(answer string) Commitment {
@@ -114,17 +123,6 @@ func NewCommitment(answer string) Commitment {
 
 type PollCommitments struct {
 	Commitments []Commitment
-}
-
-func (msg PollCommitments) Check() error {
-	for _, v := range msg.Commitments {
-		err := v.Check()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (msg PollCommitments) Has(c Commitment) bool {
@@ -150,9 +148,8 @@ type PollPacket struct {
 	Vote            *Vote
 }
 
-// TODO warn if asked for same key in separated round -> bad rep
 type StatusPacket struct {
-	Infos map[PollKey]ShareablePollInfo
+	Infos map[PollKeyMap]ShareablePollInfo
 }
 
 type GossipPacket struct {
@@ -163,11 +160,11 @@ type GossipPacket struct {
 }
 
 type EllipticCurveSignature struct {
-	r *big.Int
-	s *big.Int
+	R big.Int
+	S big.Int
 }
 
 type Signature struct {
-	linkableRingSig  *LinkableRingSignature
-	ellipticCurveSig *EllipticCurveSignature
+	Linkable *LinkableRingSignature
+	Elliptic *EllipticCurveSignature
 }

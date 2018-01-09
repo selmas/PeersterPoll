@@ -22,7 +22,7 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 		assert(len(poll.Options) > 0)
 		option := poll.Options[0]
 
-		tmpKeyPair, err := ecdsa.GenerateKey(curve, rand.Reader) // generates key pair
+		tmpKeyPair, err := ecdsa.GenerateKey(Curve(), rand.Reader) // generates key pair
 		if err != nil {
 			return
 		}
@@ -68,9 +68,9 @@ func VoterHandler(g *Gossiper) func(PollKey, RunningPollReader) {
 
 func storeParticipants(g *Gossiper, id PollKey, participants [][]*big.Int) {
 	g.Polls.Lock()
-	pollInfos := g.Polls.m[id]
+	pollInfos := g.Polls.m[id.Pack()]
 	pollInfos.Participants = participants
-	g.Polls.m[id] = pollInfos
+	g.Polls.m[id.Pack()] = pollInfos
 	g.Polls.Unlock()
 }
 

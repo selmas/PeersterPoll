@@ -8,6 +8,13 @@ new_key B
 start_server A 10000 5000 127.0.0.1:5001
 start_server B 10001 5001 127.0.0.1:5000
 
-new_poll 10000
+id="$(poll_new 10000 "What's the time?" "11:48:37" "Soon food!" "Time is an human construct")"
 
-log_check B "Poll A0"
+log_wait B "Poll $id"
+
+poll_list_contains_id 10000 "$id"
+
+vote_put 10000 "$id" "Soon food!"
+vote_put 10001 "$id" "Soon food!"
+
+sleep 15
