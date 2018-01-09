@@ -9,6 +9,7 @@ import (
 	"crypto/ecdsa"
 	secrand "crypto/rand" // alias needed as we import two libraries with name "rand"
 	"reflect"
+	"math/big"
 )
 
 // Reputation Opinions ---------------------------------------------------------------------------
@@ -168,9 +169,10 @@ type ReputationPacket struct {
 
 // TODO add this to protocol
 func UpdateReputations(g *Gossiper, pollID PollKey) {
-	//TODO g.SendReputation(pollID) _ pollID: which one??
 
-	<- g.Reputations.AddTablesWait[pollID]
+	g.SendReputation(pollID, nil)
+
+	<-g.Reputations.AddTablesWait[pollID]
 }
 
 func (g *Gossiper) SendReputationPacket(msg *ReputationPacket, sig *Signature, fromPeer *net.UDPAddr) {
@@ -221,13 +223,13 @@ func repSignature(g *Gossiper, rep ReputationPacket) (Signature, error) {
 		log.Printf("error generating elliptic curve signature")
 		return Signature{}, err
 	}
-	return Signature{nil, &EllipticCurveSignature{r, s}}, nil
+	return Signature{nil, &EllipticCurveSignature{*r, *s}}, nil
 }
 
 func repSignatureValid(g *Gossiper, pkg GossipPacket) bool {
 	rep := pkg.Reputation
 
-	if pkg.Signature != nil && pkg.Signature.ellipticCurveSig != nil {
+	if pkg.Signature != nil && pkg.Signature.Elliptic != nil {
 		input, err := json.Marshal(rep)
 		if err != nil {
 			log.Printf("unable to encode as json")
@@ -239,8 +241,8 @@ func repSignatureValid(g *Gossiper, pkg GossipPacket) bool {
 			log.Printf("error generating elliptic curve signature")
 		}
 
-		return ecdsa.Verify(&rep.Signer, hash.Sum(nil), pkg.Signature.ellipticCurveSig.r,
-			pkg.Signature.ellipticCurveSig.s)
+		return ecdsa.Verify(&rep.Signer, hash.Sum(nil), &pkg.Signature.Elliptic.R,
+			&pkg.Signature.Elliptic.S)
 	}
 
 	return false
@@ -248,17 +250,37 @@ func repSignatureValid(g *Gossiper, pkg GossipPacket) bool {
 
 // Wire ------------------------------------------------------------------------------------------
 
+type PublicKeyWire struct {
+	X []byte
+	Y []byte
+}
+
+func toWire(msg ecdsa.PublicKey) PublicKeyWire {
+	return PublicKeyWire{
+		X: msg.X.Bytes(),
+		Y: msg.Y.Bytes(),
+	}
+}
+
+func (msg PublicKeyWire) toBase() ecdsa.PublicKey {
+	return ecdsa.PublicKey{
+		Curve: Curve(),
+		X:     new(big.Int).SetBytes(msg.X),
+		Y:     new(big.Int).SetBytes(msg.Y),
+	}
+}
+
 type ReputationPacketWire struct {
 	Opinions RepOpinions
 	PollID   PollKeyWire
-	//TODO Signer PublicKeyWire
+	Signer   PublicKeyWire
 }
 
 func (msg ReputationPacket) ToWire() ReputationPacketWire {
 	return ReputationPacketWire{
-		PollID:   msg.PollID.ToWire(),
+		PollID:   msg.PollID.toWire(),
 		Opinions: msg.Opinions,
-		//TODO Signer PublicKeyWire
+		Signer:   toWire(msg.Signer),
 	}
 }
 
@@ -266,6 +288,6 @@ func (msg ReputationPacketWire) ToBase() ReputationPacket {
 	return ReputationPacket{
 		PollID:   msg.PollID.ToBase(),
 		Opinions: msg.Opinions,
-		//TODO Signer PublicKey
+		Signer:   msg.Signer.toBase(),
 	}
 }
