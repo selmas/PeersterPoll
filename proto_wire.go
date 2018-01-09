@@ -262,6 +262,7 @@ type GossipPacketWire struct {
 	Poll      *PollPacketWire
 	Signature *SignatureWire
 	Status    *StatusPacketWire
+	Reputation *ReputationPacketWire
 }
 
 func (pkg GossipPacketWire) Check() error {
@@ -319,10 +320,17 @@ func (msg GossipPacket) ToWire() GossipPacketWire {
 		sig = &wired
 	}
 
+	var r *ReputationPacketWire = nil
+	if msg.Reputation != nil {
+		wired := msg.Reputation.ToWire()
+		r = &wired
+	}
+
 	return GossipPacketWire{
 		Poll:      p,
 		Signature: sig,
 		Status:    s,
+		Reputation: r,
 	}
 }
 

@@ -28,7 +28,7 @@ func TestBlacklist(t *testing.T) {
 
 }
 
-func TestOpinions(t *testing.T) {
+/*func TestOpinions(t *testing.T) {
 	repTabA := NewReputationTable()
 	repTabB := NewReputationTable()
 	repTabC := NewReputationTable()
@@ -98,4 +98,115 @@ func TestOpinions(t *testing.T) {
 
 		t.Error("Wrong reputations")
 	}
+}*/
+
+func TestTempUpdate(t *testing.T) {
+	peerA := "peerA"
+	peerB := "peerB"
+
+	repTable := make(map[string]int)
+
+	tempUpdateRep(peerA, +1, repTable)
+	tempUpdateRep(peerA, +1, repTable)
+	tempUpdateRep(peerB, -1, repTable)
+
+	if repTable[peerA] != 2 || repTable[peerB] != -1 {
+		t.Error("Wrong reputations")
+	}
 }
+
+/*func TestReputationInfo_AddReputations(t *testing.T) {
+	peerA := "peerA"
+	peerB := "peerB"
+
+	repInfo := NewReputationInfo()
+
+	pollKey := PollKey{
+		Origin: ecdsa.PublicKey{},
+		ID:     3,
+	}
+
+	repsA := make(RepOpinions)
+	repsB := make(RepOpinions)
+
+	repsA[peerA] = +1
+	repsA[peerB] = +1
+
+	repsB[peerA] = +1
+	repsB[peerB] = -1
+
+	repInfo.AddPeerOpinion(repsA,pollKey)
+	repInfo.AddPeerOpinion(repsB,pollKey)
+
+	if len(repInfo.PeersOpinions[pollKey]) != 2 {
+		t.Error()
+	}
+
+	repInfo.AddReputations(pollKey)
+
+	if repInfo.IsBlacklisted(peerA) || repInfo.IsBlacklisted(peerB) {
+		t.Error()
+	}
+
+	pollKey = PollKey{
+		Origin: ecdsa.PublicKey{},
+		ID:     4,
+	}
+
+	repsA[peerA] = +5
+	repsA[peerB] = -1
+
+	repsB[peerA] = -1
+	repsB[peerB] = +1
+
+	repsC := make(RepOpinions)
+	repsC[peerA] = -1
+	repsC[peerB] = -1
+
+	repInfo.AddPeerOpinion(repsA,pollKey)
+	repInfo.AddPeerOpinion(repsB,pollKey)
+	repInfo.AddPeerOpinion(repsC,pollKey)
+
+	repInfo.AddReputations(pollKey)
+
+	if !repInfo.IsBlacklisted(peerA) || repInfo.IsBlacklisted(peerB) {
+		t.Error()
+	}
+
+}*/
+
+/*func TestReputationInfo_AddReputations2(t *testing.T) {
+	peerA := "peerA"
+	//peerB := "peerB"
+	//peerC := "peerC"
+
+	g := &Gossiper{
+
+	}
+
+	g2 := &Gossiper{
+
+	}
+
+	rep := ReputationPacket{
+		Signer: ecdsa.PublicKey{
+
+		},
+	}
+
+	signature, _ := repSignature(g2,rep)
+	pkg := GossipPacket{
+		Signature: &signature,
+	}
+
+	fromPeer := peerA
+
+	if !repSignatureValid(g, pkg) {
+		g.Reputations.Suspect(fromPeer)
+	}
+
+	pollID := pkg.Reputation.PollID
+
+	// store Reputation in receivedOpinions[poll]
+	g.Reputations.AddPeerOpinion(pkg.Reputation, pollID)
+}*/
