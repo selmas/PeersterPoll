@@ -139,7 +139,7 @@ func linkableRingSignature(msg []byte, L [][2]*big.Int, tmpKey *ecdsa.PrivateKey
 	return LinkableRingSignature{msg, c[0], s, tag}
 }
 
-func verifySig(sig LinkableRingSignature, L [][2]*big.Int) bool {
+func verifySig(sig LinkableRingSignature, L [][2]big.Int) bool {
 	var pubKeys []byte
 	for _, keyPair := range L {
 		pubKeys = append(pubKeys, keyPair[0].Bytes()...)
@@ -158,7 +158,7 @@ func verifySig(sig LinkableRingSignature, L [][2]*big.Int) bool {
 
 	for i := 0; i < len(L); i++ {
 		siGx, siGy := Curve().ScalarBaseMult(sig.S[i].Bytes())
-		ciYix, ciYiy := Curve().ScalarMult(L[i][0], L[i][1], c[i])
+		ciYix, ciYiy := Curve().ScalarMult(&L[i][0], &L[i][1], c[i])
 		siGciYix, siGciYiy := Curve().Add(siGx, siGy, ciYix, ciYiy)
 
 		siHx, siHy := Curve().ScalarMult(Hx, Hy, sig.S[i].Bytes())

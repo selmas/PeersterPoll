@@ -165,12 +165,12 @@ type VoteKeys struct {
 	Keys []VoteKey
 }
 
-func (msg VoteKeys) ToParticipants() [][2]*big.Int {
-	ret := make([][2]*big.Int, len(msg.Keys))
+func (msg VoteKeys) ToParticipants() [][2]big.Int {
+	ret := make([][2]big.Int, len(msg.Keys))
 
 	for i, k := range msg.Keys {
-		ret[i][0] = k.tmpKey.X
-		ret[i][1] = k.tmpKey.Y
+		ret[i][0] = *k.tmpKey.X
+		ret[i][1] = *k.tmpKey.Y
 	}
 
 	return ret

@@ -30,7 +30,7 @@ func VoterHandler(g *Gossiper) PoolPacketHandler {
 	}
 }
 
-func (g *Gossiper) storeParticipants(id PollKey, participants [][2]*big.Int) {
+func (g *Gossiper) storeParticipants(id PollKey, participants [][2]big.Int) {
 	g.Polls.Lock()
 	defer g.Polls.Unlock()
 
@@ -39,7 +39,7 @@ func (g *Gossiper) storeParticipants(id PollKey, participants [][2]*big.Int) {
 	g.Polls.m[id.Pack()] = pollInfos
 }
 
-func containsKey(keyArray [][2]*big.Int, tmpKey ecdsa.PublicKey) (int, bool) {
+func containsKey(keyArray [][2]big.Int, tmpKey ecdsa.PublicKey) (int, bool) {
 	for index, key := range keyArray {
 		if key[0].Cmp(tmpKey.X) == 0 && key[1].Cmp(tmpKey.Y) == 0 {
 			return index, true
@@ -67,6 +67,8 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 		for {
 			select {
 			case k := <-r.VoteKey:
+				_,ok := containsKey(g.ValidKeys,k.publicKey)
+				if ok {}
 				keysMap[k.Pack()] = true
 				// TODO check others commits -> bad rep
 			case <-time.After(poll.Duration):
@@ -152,5 +154,6 @@ Timeout:
 		}
 	}
 
+	// TODO consensus on blacklist??
 	// TODO locally compute all votes and display to user -> GUI
 }

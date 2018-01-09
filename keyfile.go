@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"errors"
 	"os"
+	"math/big"
 )
 
 const KeyFileName = "keys"
@@ -28,8 +29,8 @@ func KeyFileSave(keys []ecdsa.PublicKey) error {
 	return nil
 }
 
-func KeyFileLoad() ([]ecdsa.PublicKey, error) {
-	ret := make([]ecdsa.PublicKey, 0)
+func KeyFileLoad() ([][2]big.Int, error) {
+	ret := make([][2]big.Int, 0)
 
 	file, err := os.OpenFile(KeyFileName, os.O_CREATE, 0600)
 	if err != nil {
@@ -55,11 +56,7 @@ func KeyFileLoad() ([]ecdsa.PublicKey, error) {
 			return ret, errors.New("unable to unmarshal point")
 		}
 
-		ret = append(ret, ecdsa.PublicKey{
-			Curve: Curve(),
-			X:     x,
-			Y:     y,
-		})
+		ret = append(ret, [2]big.Int{*x, *y})
 	}
 
 	return ret, nil

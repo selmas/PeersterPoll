@@ -20,7 +20,7 @@ import (
 
 type ShareablePollInfo struct {
 	Poll         *Poll
-	Participants [][2]*big.Int
+	Participants [][2]big.Int
 	Commitments  []Commitment
 	Votes        []Vote
 	Tags         map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
@@ -233,7 +233,7 @@ type Gossiper struct {
 	RunningPolls RunningPollSet
 	Polls        PollSet
 	Server       Server
-	ValidKeys    []ecdsa.PublicKey
+	ValidKeys    [][2]big.Int
 	Reputations  ReputationInfo
 	Status       Status
 }
