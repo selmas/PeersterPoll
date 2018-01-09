@@ -15,11 +15,11 @@ import (
 func TestValidECSignature(t *testing.T) {
 	g := DummyGossiper()
 	pkg := PollPacket{
-		ID:   PollKey{&g.KeyPair.PublicKey, uint64(0)},
+		ID:   PollKey{g.KeyPair.PublicKey, uint64(0)},
 		Poll: DummyPoll(),
 	}
 
-	sig, err := ecSignature(pkg, g)
+	sig, err := ecSignature(&g, pkg)
 	if err != nil {
 		return
 	}
@@ -30,7 +30,7 @@ func TestValidECSignature(t *testing.T) {
 		Status:    nil,
 	}
 
-	if !signatureValid(msg, g) {
+	if !signatureValid(&g, msg) {
 		t.Errorf("Cannot verify generated signature, \ns: %d\nr: %d", sig.ellipticCurveSig.s,
 			sig.ellipticCurveSig.r)
 	}
@@ -39,7 +39,7 @@ func TestValidECSignature(t *testing.T) {
 func TestValidLinkableRingSignature(t *testing.T) {
 	g := DummyGossiper()
 	poll := PollPacket{
-		ID:         PollKey{&g.KeyPair.PublicKey, uint64(0)},
+		ID:         PollKey{g.KeyPair.PublicKey, uint64(0)},
 		Commitment: &Commitment{},
 	}
 
@@ -63,7 +63,7 @@ func TestValidLinkableRingSignature(t *testing.T) {
 		Status:    nil,
 	}
 
-	if !signatureValid(msg, g) {
+	if !signatureValid(&g, msg) {
 		t.Errorf("Cannot verify generated linkable ring signature")
 	}
 }
@@ -84,6 +84,8 @@ func DummyGossiper() Gossiper {
 		PollSet{},
 		Server{},
 		[]ecdsa.PublicKey{},
+		RepOpinions{},
+		Blacklist{},
 	}
 }
 
