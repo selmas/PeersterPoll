@@ -2,6 +2,7 @@ package pollparty
 
 import (
 	"testing"
+	"crypto/ecdsa"
 )
 
 /*func TestMain(m *testing.M) {
@@ -28,7 +29,7 @@ func TestBlacklist(t *testing.T) {
 
 }
 
-func TestOpinions(t *testing.T) {
+/*func TestOpinions(t *testing.T) {
 	repTabA := NewReputationTable()
 	repTabB := NewReputationTable()
 	repTabC := NewReputationTable()
@@ -98,4 +99,83 @@ func TestOpinions(t *testing.T) {
 
 		t.Error("Wrong reputations")
 	}
+}*/
+
+func TestTempUpdate(t *testing.T) {
+	peerA := "peerA"
+	peerB := "peerB"
+
+	repTable := make(map[string]int)
+
+	tempUpdateRep(peerA, +1, repTable)
+	tempUpdateRep(peerA, +1, repTable)
+	tempUpdateRep(peerB, -1, repTable)
+
+	if repTable[peerA] != 2 || repTable[peerB] != -1 {
+		t.Error("Wrong reputations")
+	}
+}
+
+func TestReputationInfo_AddReputations(t *testing.T) {
+	peerA := "peerA"
+	peerB := "peerB"
+
+	repInfo := ReputationInfo{
+		Opinions:  make(RepOpinions),
+		Blacklist: make(Blacklist),
+		PeersOpinions: make(map[PollKey][]RepOpinions),
+	}
+
+	pollKey := PollKey{
+		Origin: ecdsa.PublicKey{},
+		ID:     3,
+	}
+
+	repsA := make(RepOpinions)
+	repsB := make(RepOpinions)
+
+	repsA[peerA] = +1
+	repsA[peerB] = +1
+
+	repsB[peerA] = +1
+	repsB[peerB] = -1
+
+	repInfo.AddPeerOpinion(repsA,pollKey)
+	repInfo.AddPeerOpinion(repsB,pollKey)
+
+	if len(repInfo.PeersOpinions[pollKey]) != 2 {
+		t.Error()
+	}
+
+	repInfo.AddReputations(pollKey)
+
+	if repInfo.IsBlacklisted(peerA) || repInfo.IsBlacklisted(peerB) {
+		t.Error()
+	}
+
+	pollKey = PollKey{
+		Origin: ecdsa.PublicKey{},
+		ID:     4,
+	}
+
+	repsA[peerA] = +5
+	repsA[peerB] = -1
+
+	repsB[peerA] = -1
+	repsB[peerB] = +1
+
+	repsC := make(RepOpinions)
+	repsC[peerA] = -1
+	repsC[peerB] = -1
+
+	repInfo.AddPeerOpinion(repsA,pollKey)
+	repInfo.AddPeerOpinion(repsB,pollKey)
+	repInfo.AddPeerOpinion(repsC,pollKey)
+
+	repInfo.AddReputations(pollKey)
+
+	if !repInfo.IsBlacklisted(peerA) || repInfo.IsBlacklisted(peerB) {
+		t.Error()
+	}
+
 }
