@@ -30,8 +30,6 @@ func apiStartPoll(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 		question := questionAndOpts[0]
 		options := questionAndOpts[1:]
 
-		log.Println("Starting poll \""+question+"\" with options", options)
-
 		id := NewPollKey(g)
 		g.RunningPolls.Add(id, MasterHandler(g))
 		g.RunningPolls.Send(id, PollPacket{

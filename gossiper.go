@@ -1,23 +1,35 @@
 package pollparty
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	secrand "crypto/rand" // alias needed as we import two libraries with name "rand"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"github.com/dedis/protobuf"
 	"log"
+	"math/big"
 	"math/rand"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
-	"github.com/dedis/protobuf"
-	crypto "crypto/rand" // alias needed as we import two libraries with name "rand"
-	"encoding/json"
-	"math/big"
-	"crypto/sha256"
-
-	crypto2 "crypto"
 )
+
+type ShareablePollInfo struct {
+	Poll         *Poll
+	Participants [][]*big.Int
+	Commitments  []Commitment
+	Votes        []Vote
+}
+
+type PollInfo struct {
+	ShareablePollInfo
+	Tags     map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
+	Registry *crypto.PublicKey
+}
 
 type Server struct {
 	Addr *net.UDPAddr
@@ -27,15 +39,6 @@ type Server struct {
 type PeerSet struct {
 	sync.RWMutex
 	Set map[string]bool
-}
-
-type PollInfo struct {
-	Poll         *Poll
-	Commitments  []Commitment
-	Tags         map[[2]*big.Int]Commitment // mapping from tag to commitment to detect double voting
-	Votes        []Vote
-	Participants [][]*big.Int
-	Registry     *crypto2.PublicKey
 }
 
 type PollSet struct {
@@ -111,10 +114,8 @@ func (s RunningPollWriter) Send(pkg PollPacket) {
 		if poll.IsTooLate() {
 			log.Println("poll came in too late")
 		} else {
-			println(">>", pkg.ID.String())
 			s.Poll <- poll
 		}
-		close(s.Poll)
 	}
 
 	if pkg.Commitment != nil {
@@ -123,7 +124,6 @@ func (s RunningPollWriter) Send(pkg PollPacket) {
 
 	if pkg.PollCommitments != nil {
 		s.PollCommitments <- *pkg.PollCommitments
-		close(s.PollCommitments)
 	}
 
 	if pkg.PollCommitments != nil {
@@ -271,9 +271,9 @@ func NewGossiper(name string, server Server) (*Gossiper, error) {
 		Polls: PollSet{
 			m: make(map[PollKey]PollInfo),
 		},
-		ValidKeys: validKeys,
+		ValidKeys:   validKeys,
 		Reputations: make(RepOpinions),
-		Blacklist: make(Blacklist),
+		Blacklist:   make(Blacklist),
 	}, nil
 }
 
@@ -283,7 +283,7 @@ func NewPollKey(g *Gossiper) PollKey {
 
 	return PollKey{
 		ID:     atomic.AddUint64(&g.LastID, 1),
-		Origin: &g.KeyPair.PublicKey,
+		Origin: g.KeyPair.PublicKey,
 	}
 }
 
@@ -347,26 +347,25 @@ func writeMsgToUDP(server Server, peer *net.UDPAddr, poll *PollPacket, status *S
 	toSend, err := protobuf.Encode(&msg)
 
 	if err != nil {
-		log.Printf("unable to encode answer: %s", err)
-		return
+		panic(err)
 	}
 
 	server.Conn.WriteToUDP(toSend, peer)
 }
 
-func (g *Gossiper) SendPoll(id PollKey, msg Poll, gossiper Gossiper) {
+func (g *Gossiper) SendPoll(id PollKey, msg Poll) {
 	pkg := PollPacket{
 		ID:   id,
 		Poll: &msg,
 	}
-	sig, err := ecSignature(pkg, gossiper)
+	sig, err := ecSignature(g, pkg)
 	if err != nil {
 		return
 	}
 	g.SendPollPacket(&pkg, &sig, nil)
 }
 
-func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey,	pos int) {
+func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
 	pkg := PollPacket{
 		ID:         id,
 		Commitment: &msg,
@@ -378,24 +377,24 @@ func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*
 	}
 
 	lrs := linkableRingSignature(input, participants, tmpKey, pos)
-	g.SendPollPacket(&pkg, &Signature{&lrs, nil},nil)
+	g.SendPollPacket(&pkg, &Signature{&lrs, nil}, nil)
 }
 
-func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments, gossiper Gossiper) {
+func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments) {
 	pkg := PollPacket{
 		ID:              id,
 		PollCommitments: &msg,
 	}
 
-	sig, err := ecSignature(pkg, gossiper)
+	sig, err := ecSignature(g, pkg)
 	if err != nil {
 		return
 	}
 
-	g.SendPollPacket(&pkg, &sig,nil)
+	g.SendPollPacket(&pkg, &sig, nil)
 }
 
-func ecSignature(poll PollPacket, gossiper Gossiper) (Signature, error) {
+func ecSignature(g *Gossiper, poll PollPacket) (Signature, error) {
 	input, err := json.Marshal(poll)
 	if err != nil {
 		log.Printf("unable to encode as json")
@@ -404,15 +403,15 @@ func ecSignature(poll PollPacket, gossiper Gossiper) (Signature, error) {
 
 	hash := sha256.New()
 	_, err = hash.Write(input)
-	r, s, err := ecdsa.Sign(crypto.Reader, &gossiper.KeyPair, hash.Sum(nil))
+	r, s, err := ecdsa.Sign(secrand.Reader, &g.KeyPair, hash.Sum(nil))
 	if err != nil {
 		log.Printf("error generating elliptic curve signature")
 		return Signature{}, err
 	}
-	return Signature{nil, &EllipticCurveSignature{r,s}}, nil
+	return Signature{nil, &EllipticCurveSignature{r, s}}, nil
 }
 
-func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey,	pos int) {
+func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
 	pkg := PollPacket{
 		ID:   id,
 		Vote: &vote,
@@ -425,7 +424,7 @@ func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][]*big.Int, tm
 	}
 
 	lrs := linkableRingSignature(input, participants, tmpKey, pos)
-	g.SendPollPacket(&pkg, &Signature{&lrs,nil}, nil)
+	g.SendPollPacket(&pkg, &Signature{&lrs, nil}, nil)
 }
 
 func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *Signature, fromPeer *net.UDPAddr) {
@@ -444,13 +443,19 @@ func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *Signature, fromPeer *net
 	}
 }
 
-func getStatus(gossiper *Gossiper) StatusPacket {
-	gossiper.Polls.Lock()
-	defer gossiper.Polls.Unlock()
+func getStatus(g *Gossiper) StatusPacket {
+	g.Polls.Lock()
+	defer g.Polls.Unlock()
 
-	println("empty status") // TODO
+	infos := make(map[PollKey]ShareablePollInfo)
 
-	return StatusPacket{}
+	for id, info := range g.Polls.m {
+		infos[id] = info.ShareablePollInfo
+	}
+
+	return StatusPacket{
+		Infos: infos,
+	}
 }
 
 // Todo: how to properly use mapset.Set ???
@@ -500,10 +505,8 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 
 		if pkg.Poll != nil {
 			poll := *pkg.Poll
-
-			if !signatureValid(pkg, *g) || doubleVoted(pkg, *g){
-				// TODO suspect peer
-				g.Reputations.Suspect(fromPeer)
+			if !signatureValid(g, pkg) || doubleVoted(g, pkg) {
+				// TODO supect peer
 				return
 			}
 			poll.Print(fromPeer)
@@ -526,21 +529,21 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 	}
 }
 
-func doubleVoted(pkg GossipPacket, g Gossiper) bool {
+func doubleVoted(g *Gossiper, pkg GossipPacket) bool {
 	tag := pkg.Signature.linkableRingSig.tag
 	commit, stored := g.Polls.m[pkg.Poll.ID].Tags[tag]
 
-	if stored{
+	if stored {
 		return !(string(commit.Hash[:]) == string(pkg.Poll.Commitment.Hash[:]))
 	}
 
 	return false
 }
 
-func signatureValid(pkg GossipPacket, g Gossiper) bool {
+func signatureValid(g *Gossiper, pkg GossipPacket) bool {
 	poll := pkg.Poll
 
-	if poll.Commitment != nil || poll.Vote != nil {
+	if (poll.Commitment != nil || poll.Vote != nil) && !(poll.Commitment != nil && poll.Vote != nil) {
 		return pkg.Signature.linkableRingSig != nil && verifySig(*pkg.Signature.linkableRingSig, g.Polls.m[pkg.Poll.ID].Participants)
 	}
 
@@ -556,7 +559,7 @@ func signatureValid(pkg GossipPacket, g Gossiper) bool {
 			log.Printf("error generating elliptic curve signature")
 		}
 
-		return pkg.Signature.ellipticCurveSig != nil && ecdsa.Verify(pkg.Poll.ID.Origin, hash.Sum(nil),
+		return pkg.Signature.ellipticCurveSig != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash.Sum(nil),
 			pkg.Signature.ellipticCurveSig.r, pkg.Signature.ellipticCurveSig.s)
 	}
 

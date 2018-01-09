@@ -3,15 +3,23 @@ package pollparty
 import (
 	"fmt"
 	"net"
+	"strings"
 )
 
 func (pkg PollPacket) Print(clientAddr net.UDPAddr) {
-	fmt.Println(
-		"Poll ", pkg.ID.String(),
-		"from", clientAddr.String(),
-		// TODO "Question", pkg.pollQuestion.Question,
-		//"with options", strings.Join(msg.pollQuestion.VoteOptions, ","),
+	msg := fmt.Sprintf(
+		"Poll %s from %s",
+		pkg.ID.String(), clientAddr.String(),
 	)
+
+	if pkg.Poll != nil {
+		msg = fmt.Sprintf(
+			"%s asking \"%s\" with options [\"%s\"]",
+			msg, pkg.Poll.Question, strings.Join(pkg.Poll.Options, "\",\""),
+		)
+	}
+
+	fmt.Println(msg)
 }
 
 func printStatus(gossiper *Gossiper, addr *net.UDPAddr, msg *StatusPacket) {

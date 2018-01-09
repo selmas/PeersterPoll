@@ -1,12 +1,12 @@
 package pollparty
 
 import (
-	"math/big"
-	"crypto/sha256"
-	"strconv"
-	"fmt"
-	"crypto/rand"
 	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/sha256"
+	"fmt"
+	"math/big"
+	"strconv"
 )
 
 // msg contains hash of message to get signed
@@ -18,7 +18,7 @@ type LinkableRingSignature struct {
 }
 
 func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) LinkableRingSignature {
-	if pos > len(L) || L[pos][0].Cmp(tmpKey.X) != 0 && L[pos][1].Cmp(tmpKey.Y) != 0{
+	if pos > len(L) || L[pos][0].Cmp(tmpKey.X) != 0 && L[pos][1].Cmp(tmpKey.Y) != 0 {
 		fmt.Println("Linkable ring signature generation failed: public key not in L")
 		return LinkableRingSignature{}
 	}
@@ -34,7 +34,7 @@ func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey,
 	n := curve.Params().N
 
 	tag[0], tag[1] = curve.ScalarMult(Hx, Hy, tmpKey.D.Bytes())
-	
+
 	u, err := rand.Int(rand.Reader, n)
 	if err != nil {
 		fmt.Println("rand.Int failed:", err)
@@ -58,18 +58,17 @@ func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey,
 
 	// c[pos+1] = hash(L, Tag, msg, uG, uH)
 	c := make([][]byte, len(L))
-	if pos == len(L)-1{
+	if pos == len(L)-1 {
 		c[0] = hash.Sum(nil)
 	} else {
 		c[pos+1] = hash.Sum(nil)
 	}
 
-
 	s := make([]*big.Int, len(L))
 
 	// c[i+1] = hash(L, Tag, msg, s[i]*G + s[i]*Yi, s[i]*H + c[i]*Tag)
 	// c[pos+2] to c[len(L)-1], c[0]
-	for i := pos+1; i < len(L); i++  {
+	for i := pos + 1; i < len(L); i++ {
 		s[i], err = rand.Int(rand.Reader, n)
 		if err != nil {
 			fmt.Println("rand.Int failed:", err)
@@ -102,7 +101,7 @@ func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey,
 
 	// c[i] = hash(L, Tag, msg, siG + siYi, siH + ciTag)
 	// c[1] to c[pos]
-	for i := 0; i < pos ; i++ {
+	for i := 0; i < pos; i++ {
 		s[i], err = rand.Int(rand.Reader, n)
 		if err != nil {
 			fmt.Println("rand.Int failed:", err)
@@ -133,14 +132,14 @@ func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey,
 	privKeyCpos := new(big.Int).Mul(tmpKey.D, cPos)
 	privKeyCpos = new(big.Int).Mod(privKeyCpos, n)
 
-	s[pos] = new(big.Int).Sub(u,privKeyCpos)
+	s[pos] = new(big.Int).Sub(u, privKeyCpos)
 	s[pos] = new(big.Int).Add(s[pos], n)
-	s[pos]= new(big.Int).Mod(s[pos],n) // PROBLEM!!
+	s[pos] = new(big.Int).Mod(s[pos], n) // PROBLEM!!
 
 	return LinkableRingSignature{msg, c[0], s, tag}
 }
 
-func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
+func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool {
 	var pubKeys []byte
 	for _, keyPair := range L {
 		pubKeys = append(pubKeys, keyPair[0].Bytes()...)
@@ -157,7 +156,7 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
 	commonPart = append(append(commonPart, sig.tag[0].Bytes()...), sig.tag[1].Bytes()...)
 	commonPart = append(commonPart, sig.msg...)
 
-	for i:=0; i<len(L); i++ {
+	for i := 0; i < len(L); i++ {
 		siGx, siGy := curve.ScalarBaseMult(sig.s[i].Bytes())
 		ciYix, ciYiy := curve.ScalarMult(L[i][0], L[i][1], c[i])
 		siGciYix, siGciYiy := curve.Add(siGx, siGy, ciYix, ciYiy)
@@ -184,13 +183,13 @@ func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool{
 }
 
 // hashes the input to a point on the curve
-func mapToPoint(input []byte) (x, y *big.Int){
+func mapToPoint(input []byte) (x, y *big.Int) {
 	i := 0
 	p := curve.Params().P
 
 	for {
 		hash := sha256.New()
-		_, err := hash.Write(append([]byte(strconv.Itoa(i)),input...))
+		_, err := hash.Write(append([]byte(strconv.Itoa(i)), input...))
 		if err != nil {
 			fmt.Println("hash.Write failed:", err)
 		}
@@ -214,7 +213,7 @@ func mapToPoint(input []byte) (x, y *big.Int){
 			// returns nil if beta not square mod p
 			y = new(big.Int)
 			if y.ModSqrt(y2, p) != nil {
-				return x,y
+				return x, y
 			}
 		}
 		i++

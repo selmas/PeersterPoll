@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
-	"encoding/json"
 	"flag"
 	pkg "github.com/ValerianRousset/Peerster"
 	"log"
 	"net/http"
 	"strconv"
-	"time"
+	"strings"
 )
 
 type Settings struct {
@@ -24,33 +23,35 @@ func (s Settings) getUrl(post string) string {
 func poll_new(s Settings, args []string) {
 	url := s.getUrl("poll")
 	// TODO hardcoded for now
-	msg := pkg.Poll{
-		Question: "What's the time?",
-		Options: []string{
-			"10:25",
-			"10:30",
-			"Time is a weird and purely local definition",
-		},
-		StartTime: time.Now(),
-		Duration:  time.Duration(1 * time.Minute),
+	question := "What's the time?"
+	options := []string{
+		"10:25",
+		"10:30",
+		"Time is a weird and purely local definition",
 	}
 
-	json, err := json.Marshal(msg)
+	var msg string
+	msg += question
+	msg += "\n"
+	msg += strings.Join(options, "\n")
+
+	toSend := bytes.NewBufferString(msg)
+
+	req, err := http.NewRequest("POST", url, toSend)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	var client http.Client
-	req, err := http.NewRequest("PUT", url, bytes.NewReader(json))
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatal(err)
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		log.Fatalf("HTTP status error, got %d", resp.StatusCode)
+	}
 }
 
 func key_new(s Settings, args []string) {

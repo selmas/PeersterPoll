@@ -1,8 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 
 . ./test_lib.sh
-
-set -x
 
 new_key A
 new_key B
