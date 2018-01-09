@@ -17,7 +17,7 @@ type LinkableRingSignature struct {
 	Tag     [2]*big.Int
 }
 
-func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) LinkableRingSignature {
+func linkableRingSignature(msg []byte, L [][2]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) LinkableRingSignature {
 	if pos > len(L) || L[pos][0].Cmp(tmpKey.X) != 0 && L[pos][1].Cmp(tmpKey.Y) != 0 {
 		fmt.Println("Linkable ring signature generation failed: public key not in L")
 		return LinkableRingSignature{}
@@ -139,7 +139,7 @@ func linkableRingSignature(msg []byte, L [][]*big.Int, tmpKey *ecdsa.PrivateKey,
 	return LinkableRingSignature{msg, c[0], s, tag}
 }
 
-func verifySig(sig LinkableRingSignature, L [][]*big.Int) bool {
+func verifySig(sig LinkableRingSignature, L [][2]*big.Int) bool {
 	var pubKeys []byte
 	for _, keyPair := range L {
 		pubKeys = append(pubKeys, keyPair[0].Bytes()...)

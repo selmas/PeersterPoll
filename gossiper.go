@@ -20,7 +20,7 @@ import (
 
 type ShareablePollInfo struct {
 	Poll         *Poll
-	Participants [][]*big.Int
+	Participants [][2]*big.Int
 	Commitments  []Commitment
 	Votes        []Vote
 }
@@ -89,19 +89,21 @@ func (s *PollSet) Store(pkg PollPacket) {
 
 // TODO maybe split in two to have voter/server separation
 type RunningPollReader struct {
-	Poll            <-chan Poll
-	LocalVote       <-chan string
-	Commitments     <-chan Commitment
-	PollCommitments <-chan PollCommitments
-	Votes           <-chan Vote
+	Poll       <-chan Poll
+	LocalVote  <-chan string
+	VoteKey    <-chan VoteKey
+	VoteKeys   <-chan VoteKeys
+	Commitment <-chan Commitment
+	Vote       <-chan Vote
 }
 
 type RunningPollWriter struct {
-	Poll            chan<- Poll
-	LocalVote       chan<- string
-	Commitments     chan<- Commitment
-	PollCommitments chan<- PollCommitments
-	Votes           chan<- Vote
+	Poll       chan<- Poll
+	LocalVote  chan<- string
+	VoteKey    chan<- VoteKey
+	VoteKeys   chan<- VoteKeys
+	Commitment chan<- Commitment
+	Vote       chan<- Vote
 }
 
 func (s RunningPollWriter) Send(pkg PollPacket) {
@@ -115,20 +117,20 @@ func (s RunningPollWriter) Send(pkg PollPacket) {
 		}
 	}
 
+	if pkg.VoteKey != nil {
+		s.VoteKey <- *pkg.VoteKey
+	}
+
+	if pkg.VoteKeys != nil {
+		s.VoteKeys <- *pkg.VoteKeys
+	}
+
 	if pkg.Commitment != nil {
-		s.Commitments <- *pkg.Commitment
-	}
-
-	if pkg.PollCommitments != nil {
-		s.PollCommitments <- *pkg.PollCommitments
-	}
-
-	if pkg.PollCommitments != nil {
-		s.PollCommitments <- *pkg.PollCommitments
+		s.Commitment <- *pkg.Commitment
 	}
 
 	if pkg.Vote != nil {
-		s.Votes <- *pkg.Vote
+		s.Vote <- *pkg.Vote
 	}
 }
 
@@ -158,22 +160,25 @@ func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
 	assert(!s.Has(k))
 
 	poll := make(chan Poll)
-	commitments := make(chan Commitment)
-	pollCommitments := make(chan PollCommitments)
-	votes := make(chan Vote)
+	commitment := make(chan Commitment)
+	voteKey := make(chan VoteKey)
+	voteKeys := make(chan VoteKeys)
+	vote := make(chan Vote)
 
 	r := RunningPollReader{
-		Poll:            poll,
-		Commitments:     commitments,
-		PollCommitments: pollCommitments,
-		Votes:           votes,
+		Poll:       poll,
+		VoteKey:    voteKey,
+		VoteKeys:   voteKeys,
+		Commitment: commitment,
+		Vote:       vote,
 	}
 
 	w := RunningPollWriter{
-		Poll:            poll,
-		Commitments:     commitments,
-		PollCommitments: pollCommitments,
-		Votes:           votes,
+		Poll:       poll,
+		VoteKey:    voteKey,
+		VoteKeys:   voteKeys,
+		Commitment: commitment,
+		Vote:       vote,
 	}
 
 	s.Lock()
@@ -361,7 +366,7 @@ func (g *Gossiper) SendPoll(id PollKey, msg Poll) {
 	g.SendPollPacket(&pkg, &sig, nil)
 }
 
-func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
+func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][2]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
 	pkg := PollPacket{
 		ID:         id,
 		Commitment: &msg,
@@ -376,10 +381,24 @@ func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][]*
 	g.SendPollPacket(&pkg, &Signature{&lrs, nil}, nil)
 }
 
-func (g *Gossiper) SendPollCommitments(id PollKey, msg PollCommitments) {
+func (g *Gossiper) SendVoteKey(id PollKey, msg VoteKey) {
 	pkg := PollPacket{
-		ID:              id,
-		PollCommitments: &msg,
+		ID:      id,
+		VoteKey: &msg,
+	}
+
+	sig, err := ecSignature(g, pkg)
+	if err != nil {
+		return
+	}
+
+	g.SendPollPacket(&pkg, &sig, nil)
+}
+
+func (g *Gossiper) SendVoteKeys(id PollKey, msg VoteKeys) {
+	pkg := PollPacket{
+		ID:       id,
+		VoteKeys: &msg,
 	}
 
 	sig, err := ecSignature(g, pkg)
@@ -407,7 +426,7 @@ func ecSignature(g *Gossiper, poll PollPacket) (Signature, error) {
 	return Signature{nil, &EllipticCurveSignature{*r, *s}}, nil
 }
 
-func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
+func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][2]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) {
 	pkg := PollPacket{
 		ID:   id,
 		Vote: &vote,
@@ -555,7 +574,7 @@ func (g *Gossiper) SignatureValid(pkg GossipPacket) bool {
 		return pkg.Signature.Linkable != nil && verifySig(*pkg.Signature.Linkable, g.Polls.m[pkg.Poll.ID.Pack()].Participants)
 	}
 
-	if poll.PollCommitments != nil || poll.Poll != nil {
+	if poll.VoteKeys != nil || poll.Poll != nil {
 		input, err := json.Marshal(poll)
 		if err != nil {
 			log.Printf("unable to encode as json")

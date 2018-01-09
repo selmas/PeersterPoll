@@ -7,28 +7,42 @@ import (
 	"math/big"
 )
 
+type PublicKeyWire struct {
+	X []byte
+	Y []byte
+}
+
+func PublicKeyWireFromEcdsa(pk ecdsa.PublicKey) PublicKeyWire {
+	return PublicKeyWire{
+		X: pk.X.Bytes(),
+		Y: pk.Y.Bytes(),
+	}
+}
+
+func (pk PublicKeyWire) toEcdsa() ecdsa.PublicKey {
+	return ecdsa.PublicKey{
+		Curve: Curve(),
+		X:     new(big.Int).SetBytes(pk.X),
+		Y:     new(big.Int).SetBytes(pk.Y),
+	}
+}
+
 type PollKeyWire struct {
-	X  []byte
-	Y  []byte
-	ID uint64
+	Origin PublicKeyWire
+	ID     uint64
 }
 
 func (msg PollKey) toWire() PollKeyWire {
 	return PollKeyWire{
-		X:  msg.Origin.X.Bytes(),
-		Y:  msg.Origin.Y.Bytes(),
-		ID: msg.ID,
+		Origin: PublicKeyWireFromEcdsa(msg.Origin),
+		ID:     msg.ID,
 	}
 }
 
 func (msg PollKeyWire) ToBase() PollKey {
 	return PollKey{
-		Origin: ecdsa.PublicKey{
-			Curve: Curve(),
-			X:     new(big.Int).SetBytes(msg.X),
-			Y:     new(big.Int).SetBytes(msg.Y),
-		},
-		ID: msg.ID,
+		Origin: msg.Origin.toEcdsa(),
+		ID:     msg.ID,
 	}
 }
 
@@ -84,11 +98,12 @@ func (msg VoteWire) ToBase() Vote {
 }
 
 type PollPacketWire struct {
-	ID              PollKeyWire
-	Poll            *Poll
-	Commitment      *CommitmentWire
-	PollCommitments *PollCommitments
-	Vote            *VoteWire
+	ID         PollKeyWire
+	Poll       *Poll
+	VoteKey    *VoteKeyWire
+	VoteKeys   *VoteKeysWire
+	Commitment *CommitmentWire
+	Vote       *VoteWire
 }
 
 func (pkg PollPacketWire) check() error {
@@ -102,13 +117,17 @@ func (pkg PollPacketWire) check() error {
 		nilCount++
 	}
 
+	if pkg.VoteKey != nil {
+		nilCount++
+	}
+
+	if pkg.VoteKeys != nil {
+		nilCount++
+	}
+
 	if pkg.Commitment != nil {
 		nilCount++
 		err = pkg.Commitment.check()
-	}
-
-	if pkg.PollCommitments != nil {
-		nilCount++
 	}
 
 	if pkg.Vote != nil {
@@ -129,6 +148,18 @@ func (pkg PollPacketWire) check() error {
 }
 
 func (msg PollPacket) toWire() PollPacketWire {
+	var vk *VoteKeyWire = nil
+	if msg.VoteKey != nil {
+		wired := msg.VoteKey.toWire()
+		vk = &wired
+	}
+
+	var vks *VoteKeysWire = nil
+	if msg.VoteKeys != nil {
+		wired := msg.VoteKeys.toWire()
+		vks = &wired
+	}
+
 	var c *CommitmentWire = nil
 	if msg.Commitment != nil {
 		wired := msg.Commitment.toWire()
@@ -142,11 +173,12 @@ func (msg PollPacket) toWire() PollPacketWire {
 	}
 
 	return PollPacketWire{
-		ID:              msg.ID.toWire(),
-		Poll:            msg.Poll,
-		Commitment:      c,
-		PollCommitments: msg.PollCommitments,
-		Vote:            v,
+		ID:         msg.ID.toWire(),
+		Poll:       msg.Poll,
+		VoteKey:    vk,
+		VoteKeys:   vks,
+		Commitment: c,
+		Vote:       v,
 	}
 }
 
@@ -154,25 +186,29 @@ func (msg PollPacketWire) ToBase() PollPacket {
 	const head = "GossipPacketWire: "
 
 	ret := PollPacket{
-		ID:              msg.ID.ToBase(),
-		Poll:            msg.Poll,
-		PollCommitments: msg.PollCommitments,
+		ID:   msg.ID.ToBase(),
+		Poll: msg.Poll,
 	}
 
-	var c *Commitment
+	if msg.VoteKey != nil {
+		wired := msg.VoteKey.toBase()
+		ret.VoteKey = &wired
+	}
+
+	if msg.VoteKeys != nil {
+		wired := msg.VoteKeys.toBase()
+		ret.VoteKeys = &wired
+	}
+
 	if msg.Commitment != nil {
 		wired := msg.Commitment.ToBase()
-		c = &wired
+		ret.Commitment = &wired
 	}
 
-	var v *Vote
 	if msg.Vote != nil {
 		wired := msg.Vote.ToBase()
-		v = &wired
+		ret.Vote = &wired
 	}
-
-	ret.Commitment = c
-	ret.Vote = v
 
 	return ret
 }
@@ -437,4 +473,48 @@ func (msg LinkableRingSignatureWire) ToBase() LinkableRingSignature {
 	}
 
 	return ret
+}
+
+type VoteKeyWire struct {
+	Key PublicKeyWire
+}
+
+func (msg VoteKey) toWire() VoteKeyWire {
+	return VoteKeyWire{
+		Key: PublicKeyWireFromEcdsa(msg.Key),
+	}
+}
+
+func (msg VoteKeyWire) toBase() VoteKey {
+	return VoteKey{
+		Key: msg.Key.toEcdsa(),
+	}
+}
+
+type VoteKeysWire struct {
+	Keys []VoteKeyWire
+}
+
+func (msg VoteKeys) toWire() VoteKeysWire {
+	keys := make([]VoteKeyWire, len(msg.Keys))
+
+	for i, k := range msg.Keys {
+		keys[i] = k.toWire()
+	}
+
+	return VoteKeysWire{
+		Keys: keys,
+	}
+}
+
+func (msg VoteKeysWire) toBase() VoteKeys {
+	keys := make([]VoteKey, len(msg.Keys))
+
+	for i, k := range msg.Keys {
+		keys[i] = k.toBase()
+	}
+
+	return VoteKeys{
+		Keys: keys,
+	}
 }

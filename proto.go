@@ -105,7 +105,7 @@ type Commitment struct {
 	Hash [sha256.Size]byte
 }
 
-func NewCommitment(answer string) Commitment {
+func NewCommitment(answer string) (Commitment, [SaltSize]byte) {
 	var salt [SaltSize]byte
 	rand.Read(salt[:])
 
@@ -118,15 +118,19 @@ func NewCommitment(answer string) Commitment {
 
 	return Commitment{
 		Hash: hash,
-	}
+	}, salt
 }
 
-type PollCommitments struct {
-	Commitments []Commitment
+type VoteKey struct {
+	Key ecdsa.PublicKey
 }
 
-func (msg PollCommitments) Has(c Commitment) bool {
-	for _, v := range msg.Commitments {
+type VoteKeys struct {
+	Keys []VoteKey
+}
+
+func (msg VoteKeys) Has(c VoteKey) bool {
+	for _, v := range msg.Keys {
 		if v == c {
 			return true
 		}
@@ -135,17 +139,29 @@ func (msg PollCommitments) Has(c Commitment) bool {
 	return false
 }
 
+func (msg VoteKeys) ToParticipants() [][2]*big.Int {
+	ret := make([][2]*big.Int, len(msg.Keys))
+
+	for i, k := range msg.Keys {
+		ret[i][0] = k.Key.X
+		ret[i][0] = k.Key.Y
+	}
+
+	return ret
+}
+
 type Vote struct {
 	Salt   [SaltSize]byte
 	Option string
 }
 
 type PollPacket struct {
-	ID              PollKey
-	Poll            *Poll
-	Commitment      *Commitment
-	PollCommitments *PollCommitments
-	Vote            *Vote
+	ID         PollKey
+	Poll       *Poll
+	VoteKey    *VoteKey
+	VoteKeys   *VoteKeys
+	Commitment *Commitment
+	Vote       *Vote
 }
 
 type StatusPacket struct {
