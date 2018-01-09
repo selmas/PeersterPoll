@@ -389,7 +389,7 @@ func (g *Gossiper) SendPoll(id PollKey, msg Poll) {
 	g.SendPollPacket(&pkg, &sig, nil)
 }
 
-func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][2]*big.Int, tmpKey ecdsa.PrivateKey, pos int) {
+func (g *Gossiper) SendCommitment(id PollKey, msg Commitment, participants [][2]big.Int, tmpKey ecdsa.PrivateKey, pos int) {
 	pkg := PollPacket{
 		ID:         id,
 		Commitment: &msg,
@@ -449,7 +449,7 @@ func ecSignature(g *Gossiper, poll PollPacket) (Signature, error) {
 	return Signature{nil, &EllipticCurveSignature{*r, *s}}, nil
 }
 
-func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][2]*big.Int, tmpKey ecdsa.PrivateKey, pos int) {
+func (g *Gossiper) SendVote(id PollKey, vote Vote, participants [][2]big.Int, tmpKey ecdsa.PrivateKey, pos int) {
 	pkg := PollPacket{
 		ID:   id,
 		Vote: &vote,

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"math/big"
 )
 
 func TestValidECSignature(t *testing.T) {
@@ -83,7 +84,7 @@ func DummyGossiper() *Gossiper {
 		RunningPollSet{},
 		PollSet{},
 		Server{},
-		[]ecdsa.PublicKey{},
+		make([][2]big.Int,0),
 		NewReputationInfo(),
 		Status{},
 	}

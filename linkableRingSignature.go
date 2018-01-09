@@ -17,7 +17,7 @@ type LinkableRingSignature struct {
 	Tag     [2]*big.Int
 }
 
-func linkableRingSignature(msg []byte, L [][2]*big.Int, tmpKey *ecdsa.PrivateKey, pos int) LinkableRingSignature {
+func linkableRingSignature(msg []byte, L [][2]big.Int, tmpKey *ecdsa.PrivateKey, pos int) LinkableRingSignature {
 	if pos > len(L) || L[pos][0].Cmp(tmpKey.X) != 0 && L[pos][1].Cmp(tmpKey.Y) != 0 {
 		fmt.Println("Linkable ring signature generation failed: public key not in L")
 		return LinkableRingSignature{}
@@ -75,7 +75,7 @@ func linkableRingSignature(msg []byte, L [][2]*big.Int, tmpKey *ecdsa.PrivateKey
 		}
 
 		siGx, siGy := Curve().ScalarBaseMult(s[i].Bytes())
-		ciYix, ciYiy := Curve().ScalarMult(L[i][0], L[i][1], c[i])
+		ciYix, ciYiy := Curve().ScalarMult(&L[i][0], &L[i][1], c[i])
 		siGciYix, siGciYiy := Curve().Add(siGx, siGy, ciYix, ciYiy)
 
 		siHx, siHy := Curve().ScalarMult(Hx, Hy, s[i].Bytes())

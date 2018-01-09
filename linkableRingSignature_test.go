@@ -125,23 +125,23 @@ func TestVerifyInvalidSignature(t *testing.T) {
 }
 
 // inspired by https://stackoverflow.com/questions/7703251/slice-of-slices-types
-func initTwoDimArray(dy int) [][2]*big.Int {
-	return make([][2]*big.Int, dy)
+func initTwoDimArray(dy int) [][2]big.Int {
+	return make([][2]big.Int, dy)
 }
 
-func DummyPublicKeyArray(g *Gossiper, pos int, numPubKey int) [][2]*big.Int {
+func DummyPublicKeyArray(g *Gossiper, pos int, numPubKey int) [][2]big.Int {
 	L := initTwoDimArray(numPubKey)
 	for i := 0; i < numPubKey; i++ {
 		if i == pos {
-			L[pos][0] = g.KeyPair.X
-			L[pos][1] = g.KeyPair.Y
+			L[pos][0] = *g.KeyPair.X
+			L[pos][1] = *g.KeyPair.Y
 		} else {
 			keyPair, err := ecdsa.GenerateKey(Curve(), crypto.Reader) // generates key pair
 			if err != nil {
 				panic(err)
 			}
-			L[i][0] = keyPair.X
-			L[i][1] = keyPair.Y
+			L[i][0] = *keyPair.X
+			L[i][1] = *keyPair.Y
 		}
 	}
 	return L
