@@ -9,7 +9,6 @@ import (
 	"crypto/ecdsa"
 	secrand "crypto/rand" // alias needed as we import two libraries with name "rand"
 	"reflect"
-	"math/big"
 )
 
 // Reputation Opinions ---------------------------------------------------------------------------
@@ -250,26 +249,6 @@ func repSignatureValid(g *Gossiper, pkg GossipPacket) bool {
 
 // Wire ------------------------------------------------------------------------------------------
 
-type PublicKeyWire struct {
-	X []byte
-	Y []byte
-}
-
-func toWire(msg ecdsa.PublicKey) PublicKeyWire {
-	return PublicKeyWire{
-		X: msg.X.Bytes(),
-		Y: msg.Y.Bytes(),
-	}
-}
-
-func (msg PublicKeyWire) toBase() ecdsa.PublicKey {
-	return ecdsa.PublicKey{
-		Curve: Curve(),
-		X:     new(big.Int).SetBytes(msg.X),
-		Y:     new(big.Int).SetBytes(msg.Y),
-	}
-}
-
 type ReputationPacketWire struct {
 	Opinions RepOpinions
 	PollID   PollKeyWire
@@ -280,7 +259,7 @@ func (msg ReputationPacket) ToWire() ReputationPacketWire {
 	return ReputationPacketWire{
 		PollID:   msg.PollID.toWire(),
 		Opinions: msg.Opinions,
-		Signer:   toWire(msg.Signer),
+		Signer:   PublicKeyWireFromEcdsa(msg.Signer),
 	}
 }
 
@@ -288,6 +267,6 @@ func (msg ReputationPacketWire) ToBase() ReputationPacket {
 	return ReputationPacket{
 		PollID:   msg.PollID.ToBase(),
 		Opinions: msg.Opinions,
-		Signer:   msg.Signer.toBase(),
+		Signer:   msg.Signer.toEcdsa(),
 	}
 }

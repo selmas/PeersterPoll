@@ -2,8 +2,6 @@ package pollparty
 
 import (
 	"testing"
-	"fmt"
-	"time"
 )
 
 /*func TestMain(m *testing.M) {
@@ -212,5 +210,3 @@ func TestTempUpdate(t *testing.T) {
 	// store Reputation in receivedOpinions[poll]
 	g.Reputations.AddPeerOpinion(pkg.Reputation, pollID)
 }*/
-
-
