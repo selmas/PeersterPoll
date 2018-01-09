@@ -2,7 +2,6 @@ package pollparty
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	crypto "crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -19,7 +18,8 @@ func TestValidECSignature(t *testing.T) {
 		Poll: DummyPoll(),
 	}
 
-	sig, err := ecSignature(&g, pkg)
+
+	sig, err := ecSignature(g, pkg)
 	if err != nil {
 		return
 	}
@@ -30,9 +30,9 @@ func TestValidECSignature(t *testing.T) {
 		Status:    nil,
 	}
 
-	if !signatureValid(&g, msg) {
-		t.Errorf("Cannot verify generated signature, \ns: %d\nr: %d", sig.ellipticCurveSig.s,
-			sig.ellipticCurveSig.r)
+	if !g.SignatureValid(msg) {
+		t.Errorf("Cannot verify generated signature, \ns: %d\nr: %d", sig.Elliptic.S,
+			sig.Elliptic.R)
 	}
 }
 
@@ -63,19 +63,19 @@ func TestValidLinkableRingSignature(t *testing.T) {
 		Status:    nil,
 	}
 
-	if !signatureValid(&g, msg) {
+	if !g.SignatureValid(msg) {
 		t.Errorf("Cannot verify generated linkable ring signature")
 	}
 }
 
-func DummyGossiper() Gossiper {
-	curve = elliptic.P256()
-	key, err := ecdsa.GenerateKey(curve, crypto.Reader)
+func DummyGossiper() *Gossiper {
+	key, err := ecdsa.GenerateKey(Curve(), crypto.Reader)
 	if err != nil {
 		fmt.Printf("error generating key pair")
 	}
 
-	return Gossiper{sync.RWMutex{},
+	return &Gossiper{
+		sync.RWMutex{},
 		"name",
 		uint64(0),
 		*key,
@@ -84,8 +84,7 @@ func DummyGossiper() Gossiper {
 		PollSet{},
 		Server{},
 		[]ecdsa.PublicKey{},
-		RepOpinions{},
-		Blacklist{},
+		NewReputationInfo(),
 	}
 }
 
