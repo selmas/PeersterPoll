@@ -88,12 +88,12 @@ func (s *PollSet) Store(pkg PollPacket) {
 	s.m[pkg.ID.Pack()] = info
 }
 
-// TODO maybe split in two to have voter/server separation
 type VoteAndSender struct {
 	Vote   Vote
 	Sender *net.UDPAddr
 }
 
+// TODO maybe split in two to have voter/server separation
 type RunningPollReader struct {
 	Poll       <-chan Poll
 	LocalVote  <-chan string
@@ -109,11 +109,10 @@ type RunningPollWriter struct {
 	VoteKey    chan<- VoteKey
 	VoteKeys   chan<- VoteKeys
 	Commitment chan<- Commitment
-	Vote       chan<- Vote
+	Vote       chan<- VoteAndSender
 }
 
-func (s RunningPollWriter) Send(pkg PollPacket) {
-
+func (s RunningPollWriter) Send(pkg PollPacket, fromPeer *net.UDPAddr) {
 	if pkg.Poll != nil {
 		poll := *pkg.Poll
 		if poll.IsTooLate() {
@@ -136,7 +135,10 @@ func (s RunningPollWriter) Send(pkg PollPacket) {
 	}
 
 	if pkg.Vote != nil {
-		s.Vote <- *pkg.Vote
+		s.Vote <- VoteAndSender{
+			Vote:   *pkg.Vote,
+			Sender: fromPeer,
+		}
 	}
 }
 
@@ -169,7 +171,7 @@ func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
 	commitment := make(chan Commitment)
 	voteKey := make(chan VoteKey)
 	voteKeys := make(chan VoteKeys)
-	vote := make(chan Vote)
+	vote := make(chan VoteAndSender)
 
 	r := RunningPollReader{
 		Poll:       poll,
@@ -199,12 +201,12 @@ func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
 	go handler(k, *key, r)
 }
 
-func (s *RunningPollSet) Send(pkg PollPacket) {
+func (s *RunningPollSet) Send(pkg PollPacket, fromPeer *net.UDPAddr) {
 	s.RLock()
 	defer s.RUnlock()
 
 	r := s.m[pkg.ID.Pack()]
-	r.Send(pkg)
+	r.Send(pkg, fromPeer)
 }
 
 type Route struct {
@@ -565,7 +567,7 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			}
 
 			assert(g.RunningPolls.Has(poll.ID))
-			g.RunningPolls.Send(poll)
+			g.RunningPolls.Send(poll, &fromPeer)
 		}
 
 		if pkg.Status != nil {

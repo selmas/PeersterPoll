@@ -36,14 +36,14 @@ func apiStartPoll(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 			Poll: &Poll{
 				Question:  question,
 				Options:   options,
-				StartTime: time.Now(),                      // TODO user customizable
-				Duration:  time.Duration(10 * time.Second), // TODO user customizable
+				StartTime: time.Now(),                     // TODO user customizable
+				Duration:  time.Duration(3 * time.Second), // TODO user customizable
 			},
 		}
 
 		g.Polls.Store(pkg)
 		g.RunningPolls.Add(id, MasterHandler(g))
-		g.RunningPolls.Send(pkg)
+		g.RunningPolls.Send(pkg, nil)
 
 		w.Write([]byte(id.String()))
 	}

@@ -59,7 +59,6 @@ func (k PollKey) Pack() PollKeyMap {
 }
 
 func (k PollKeyMap) Unpack() PollKey {
-
 	return PollKey{
 		Origin: k.Origin.toEcdsa(),
 		ID:     k.ID,
@@ -170,8 +169,8 @@ func (msg VoteKeys) ToParticipants() [][2]*big.Int {
 	ret := make([][2]*big.Int, len(msg.Keys))
 
 	for i, k := range msg.Keys {
-		ret[i][0] = k.publicKey.X
-		ret[i][0] = k.publicKey.Y
+		ret[i][0] = k.tmpKey.X
+		ret[i][1] = k.tmpKey.Y
 	}
 
 	return ret

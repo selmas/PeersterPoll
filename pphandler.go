@@ -17,8 +17,8 @@ func VoterHandler(g *Gossiper) PoolPacketHandler {
 		log.Println("Voter: new poll:", id.String())
 
 		voteKey := VoteKey{
-			g.KeyPair.PublicKey,
-			key.PublicKey,
+			publicKey: g.KeyPair.PublicKey,
+			tmpKey:    key.PublicKey,
 		}
 		g.SendVoteKey(id, voteKey)
 		log.Println("Voter: send back key")
@@ -39,9 +39,9 @@ func (g *Gossiper) storeParticipants(id PollKey, participants [][2]*big.Int) {
 	g.Polls.m[id.Pack()] = pollInfos
 }
 
-func containsKey(keyArray [][2]*big.Int, publicKey ecdsa.PublicKey) (int, bool) {
+func containsKey(keyArray [][2]*big.Int, tmpKey ecdsa.PublicKey) (int, bool) {
 	for index, key := range keyArray {
-		if key[0].Cmp(publicKey.X) == 0 && key[1].Cmp(publicKey.Y) == 0 {
+		if key[0].Cmp(tmpKey.X) == 0 && key[1].Cmp(tmpKey.Y) == 0 {
 			return index, true
 		}
 	}
@@ -57,6 +57,12 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 		g.SendPoll(id, poll)
 
 		keysMap := make(map[VoteKeyMap]bool)
+		mapKey := VoteKey{
+			publicKey: g.KeyPair.PublicKey,
+			tmpKey:    key.PublicKey,
+		}.Pack()
+		keysMap[mapKey] = true
+
 	Timeout:
 		for {
 			select {
@@ -69,7 +75,7 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 		}
 
 		var keys []VoteKey
-		for k := range keysMap {
+		for k, _ := range keysMap {
 			keys = append(keys, k.Unpack())
 		}
 
@@ -90,7 +96,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 	position, ok := containsKey(participants, key.PublicKey)
 	if !ok {
 		log.Printf("%s: not considered for this vote, abort", logName)
-		return // we are not part of this vote
+		return
 	}
 
 	commits := make([]Commitment, 0)
@@ -129,7 +135,7 @@ Timeout:
 				myStatus := getStatus(g)
 				writeMsgToUDP(g.Server, vote.Sender, nil, &myStatus, nil, nil)
 				// TODO wait for reply (timeout)
-				if len(commits) < len(keys.Keys){
+				if len(commits) < len(keys.Keys) {
 					// TODO suspect peer
 				}
 			}
