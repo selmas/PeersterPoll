@@ -218,8 +218,7 @@ type Gossiper struct {
 	Polls        PollSet
 	Server       Server
 	ValidKeys    []ecdsa.PublicKey
-	Reputations  RepOpinions
-	Blacklist    Blacklist
+	Reputations  ReputationInfo
 }
 
 func (g *Gossiper) addPeer(addr net.UDPAddr) {
@@ -270,9 +269,8 @@ func NewGossiper(name string, server Server) (*Gossiper, error) {
 		Polls: PollSet{
 			m: make(map[PollKey]PollInfo),
 		},
-		ValidKeys:   validKeys,
-		Reputations: make(RepOpinions),
-		Blacklist:   make(Blacklist),
+		ValidKeys: validKeys,
+		Reputations: NewReputationInfo(),
 	}, nil
 }
 
@@ -337,11 +335,13 @@ func getRandomPeer(peers *PeerSet, butNotThisPeer *net.UDPAddr) *net.UDPAddr {
 	return addr
 }
 
-func writeMsgToUDP(server Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket, signature *Signature) {
+func writeMsgToUDP(server Server, peer *net.UDPAddr, poll *PollPacket, status *StatusPacket, signature *Signature,
+	reputation *ReputationPacket) {
 	msg := GossipPacket{
-		Poll:      poll,
-		Signature: signature,
-		Status:    status,
+		Poll:       poll,
+		Signature:  signature,
+		Status:     status,
+		Reputation: reputation,
 	}.ToWire()
 	toSend, err := protobuf.Encode(&msg)
 
@@ -433,7 +433,7 @@ func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *Signature, fromPeer *net
 			break
 		}
 
-		writeMsgToUDP(g.Server, peer, msg, nil, sig)
+		writeMsgToUDP(g.Server, peer, msg, nil, sig, nil)
 
 		printFlippedCoin(peer, "rumor")
 		if rand.Intn(2) == 0 {
@@ -526,6 +526,26 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			syncStatus(g, fromPeer, *pkg.Status)
 		}
 
+		if pkg.Reputation != nil {
+
+			// TODO check if packet is new
+
+			if !repSignatureValid(g, pkg) {
+				g.Reputations.Suspect(fromPeer.String())
+			}
+
+			pollID := pkg.Reputation.PollID
+
+			// store Reputation in receivedOpinions[poll]
+			g.Reputations.AddPeerOpinion(pkg.Reputation, pollID)
+
+			/* TODO if recvRep.len == #peers || timeout{
+				g.Reputations.AddReputations(pollID)
+				g.Reputations.AddTablesWait[pollID] <- true
+			}*/
+
+			//TODO gossip packet
+		}
 	}
 }
 
@@ -588,6 +608,6 @@ func AntiEntropyGossip(gossiper *Gossiper) {
 
 		printFlippedCoin(peer, "status")
 		status := getStatus(gossiper)
-		writeMsgToUDP(gossiper.Server, peer, nil, &status, nil)
+		writeMsgToUDP(gossiper.Server, peer, nil, &status, nil, nil)
 	}
 }

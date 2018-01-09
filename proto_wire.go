@@ -254,17 +254,25 @@ func (msg GossipPacket) ToWire() GossipPacketWire {
 		s = &wired
 	}
 
+	var r *ReputationPacketWire = nil
+	if msg.Reputation != nil {
+		wired := msg.Reputation.ToWire()
+		r = &wired
+	}
+
 	return GossipPacketWire{
-		Poll:      p,
-		Signature: msg.Signature,
-		Status:    s,
+		Poll:       p,
+		Signature:  msg.Signature,
+		Status:     s,
+		Reputation: r,
 	}
 }
 
 type GossipPacketWire struct {
-	Poll      *PollPacketWire
-	Signature *Signature // TODO it can't be optional, can it?
-	Status    *StatusPacketWire
+	Poll       *PollPacketWire
+	Signature  *Signature // TODO it can't be optional, can it?
+	Status     *StatusPacketWire
+	Reputation *ReputationPacketWire
 }
 
 func (msg GossipPacketWire) ToBase() (GossipPacket, error) {

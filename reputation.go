@@ -1,5 +1,16 @@
 package pollparty
 
+import (
+	"net"
+	"math/rand"
+	"encoding/json"
+	"log"
+	"crypto/sha256"
+	"crypto/ecdsa"
+	secrand "crypto/rand" // alias needed as we import two libraries with name "rand"
+	"reflect"
+)
+
 // Reputation Opinions ---------------------------------------------------------------------------
 
 type RepOpinions map[string]int
@@ -37,8 +48,9 @@ func (opinions RepOpinions) hasInvalidOpinion() bool {
 	return false
 }
 
-// TODO Do not forget to make sure that if two different received opinions are signed with the same key,
-// none of those two should be taken into account
+func (opinions RepOpinions) equals(otherOpinions RepOpinions) bool {
+	return reflect.DeepEqual(opinions, otherOpinions)
+}
 
 // Blacklist -------------------------------------------------------------------------------------
 
@@ -80,11 +92,31 @@ type ReputationInfo struct {
 	Opinions  RepOpinions
 	Blacklist Blacklist
 
-	PeersOpinions map[PollKey][]RepOpinions
+	PeersOpinions map[PollKey]map[ecdsa.PublicKey]RepOpinions
+
+	//TODO create channel for every poll when it starts
+	AddTablesWait map[PollKey]chan bool
 }
 
-func (repInfo ReputationInfo) AddPeerOpinion(opinion RepOpinions, pollID PollKey) {
-	repInfo.PeersOpinions[pollID] = append(repInfo.PeersOpinions[pollID], opinion)
+func NewReputationInfo() ReputationInfo {
+	return ReputationInfo{
+		Opinions:      make(RepOpinions),
+		Blacklist:     make(Blacklist),
+		PeersOpinions: make(map[PollKey]map[ecdsa.PublicKey]RepOpinions),
+		AddTablesWait: make(map[PollKey]chan bool),
+	}
+}
+
+func (repInfo ReputationInfo) AddPeerOpinion(pkg *ReputationPacket, pollID PollKey) {
+	//repInfo.PeersOpinions[pollID] = append(repInfo.PeersOpinions[pollID], opinion)
+	if repInfo.PeersOpinions[pollID] == nil {
+		repInfo.PeersOpinions[pollID] = make(map[ecdsa.PublicKey]RepOpinions)
+	}
+
+	opinion := pkg.Opinions
+	signer := pkg.Signer
+
+	repInfo.PeersOpinions[pollID][signer] = opinion
 }
 
 func (repInfo ReputationInfo) AddReputations(pollID PollKey) {
@@ -126,3 +158,114 @@ func (repInfo ReputationInfo) Suspect(peer string) {
 	repInfo.Blacklist.add(peer)
 }
 
+// Reputation Packet -----------------------------------------------------------------------------
+
+type ReputationPacket struct {
+	Signer   ecdsa.PublicKey
+	Opinions RepOpinions
+	PollID   PollKey
+}
+
+// TODO add this to protocol
+func UpdateReputations(g *Gossiper, pollID PollKey) {
+	//TODO g.SendReputation(pollID) _ pollID: which one??
+
+	<- g.Reputations.AddTablesWait[pollID]
+}
+
+func (g *Gossiper) SendReputationPacket(msg *ReputationPacket, sig *Signature, fromPeer *net.UDPAddr) {
+	// TODO status for this or just send to all except fromPeer
+	for {
+		peer := getRandomPeer(&g.Peers, fromPeer)
+		if peer == nil {
+			break
+		}
+
+		writeMsgToUDP(g.Server, peer, nil, nil, sig, msg)
+
+		printFlippedCoin(peer, "reputation opinions")
+		if rand.Intn(2) == 0 {
+			break
+		}
+	}
+}
+
+// TODO use this somewhere!!!!
+func (g *Gossiper) SendReputation(key PollKey, fromPeer *net.UDPAddr) {
+	pkg := ReputationPacket{
+		PollID:   key,
+		Opinions: g.Reputations.Opinions,
+		Signer:   g.KeyPair.PublicKey,
+		// use this to verify
+	}
+
+	sig, err := repSignature(g, pkg)
+	if err != nil {
+		return
+	}
+
+	g.SendReputationPacket(&pkg, &sig, fromPeer)
+}
+
+func repSignature(g *Gossiper, rep ReputationPacket) (Signature, error) {
+	input, err := json.Marshal(rep)
+	if err != nil {
+		log.Printf("unable to encode as json")
+		return Signature{}, err
+	}
+
+	hash := sha256.New()
+	_, err = hash.Write(input)
+	r, s, err := ecdsa.Sign(secrand.Reader, &g.KeyPair, hash.Sum(nil))
+	if err != nil {
+		log.Printf("error generating elliptic curve signature")
+		return Signature{}, err
+	}
+	return Signature{nil, &EllipticCurveSignature{r, s}}, nil
+}
+
+func repSignatureValid(g *Gossiper, pkg GossipPacket) bool {
+	rep := pkg.Reputation
+
+	if pkg.Signature != nil && pkg.Signature.ellipticCurveSig != nil {
+		input, err := json.Marshal(rep)
+		if err != nil {
+			log.Printf("unable to encode as json")
+		}
+
+		hash := sha256.New()
+		_, err = hash.Write(input)
+		if err != nil {
+			log.Printf("error generating elliptic curve signature")
+		}
+
+		return ecdsa.Verify(&rep.Signer, hash.Sum(nil), pkg.Signature.ellipticCurveSig.r,
+			pkg.Signature.ellipticCurveSig.s)
+	}
+
+	return false
+}
+
+// Wire ------------------------------------------------------------------------------------------
+
+type ReputationPacketWire struct {
+	Opinions RepOpinions
+	PollID   PollKeyWire
+	//TODO Signer PublicKeyWire
+}
+
+func (msg ReputationPacket) ToWire() ReputationPacketWire {
+	return ReputationPacketWire{
+		PollID:   msg.PollID.ToWire(),
+		Opinions: msg.Opinions,
+		//TODO Signer PublicKeyWire
+	}
+}
+
+func (msg ReputationPacketWire) ToBase() ReputationPacket {
+	return ReputationPacket{
+		PollID:   msg.PollID.ToBase(),
+		Opinions: msg.Opinions,
+		//TODO Signer PublicKey
+	}
+}

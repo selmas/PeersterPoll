@@ -159,6 +159,7 @@ type GossipPacket struct {
 	Poll      *PollPacket
 	Signature *Signature
 	Status    *StatusPacket
+	Reputation *ReputationPacket
 }
 
 type EllipticCurveSignature struct {

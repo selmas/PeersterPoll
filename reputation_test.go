@@ -2,7 +2,8 @@ package pollparty
 
 import (
 	"testing"
-	"crypto/ecdsa"
+	"fmt"
+	"time"
 )
 
 /*func TestMain(m *testing.M) {
@@ -116,15 +117,11 @@ func TestTempUpdate(t *testing.T) {
 	}
 }
 
-func TestReputationInfo_AddReputations(t *testing.T) {
+/*func TestReputationInfo_AddReputations(t *testing.T) {
 	peerA := "peerA"
 	peerB := "peerB"
 
-	repInfo := ReputationInfo{
-		Opinions:  make(RepOpinions),
-		Blacklist: make(Blacklist),
-		PeersOpinions: make(map[PollKey][]RepOpinions),
-	}
+	repInfo := NewReputationInfo()
 
 	pollKey := PollKey{
 		Origin: ecdsa.PublicKey{},
@@ -178,4 +175,42 @@ func TestReputationInfo_AddReputations(t *testing.T) {
 		t.Error()
 	}
 
-}
+}*/
+
+/*func TestReputationInfo_AddReputations2(t *testing.T) {
+	peerA := "peerA"
+	//peerB := "peerB"
+	//peerC := "peerC"
+
+	g := &Gossiper{
+
+	}
+
+	g2 := &Gossiper{
+
+	}
+
+	rep := ReputationPacket{
+		Signer: ecdsa.PublicKey{
+
+		},
+	}
+
+	signature, _ := repSignature(g2,rep)
+	pkg := GossipPacket{
+		Signature: &signature,
+	}
+
+	fromPeer := peerA
+
+	if !repSignatureValid(g, pkg) {
+		g.Reputations.Suspect(fromPeer)
+	}
+
+	pollID := pkg.Reputation.PollID
+
+	// store Reputation in receivedOpinions[poll]
+	g.Reputations.AddPeerOpinion(pkg.Reputation, pollID)
+}*/
+
+
