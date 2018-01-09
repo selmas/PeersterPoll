@@ -110,6 +110,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 		close(option)
 	}()
 
+	voteSent := false
 Timeout:
 	for {
 		select {
@@ -121,6 +122,7 @@ Timeout:
 					Option: <-option,
 				}, participants, key, position)
 				log.Printf("%s: send vote", logName)
+				voteSent = true
 			}
 		case vote := <-r.Vote:
 			if len(commits) < len(keys.Keys) {
@@ -129,6 +131,12 @@ Timeout:
 			votes = append(votes, vote)
 		case <-time.After(NetworkConvergeDuration):
 			log.Printf("%s: timeout", logName)
+			if !voteSent {
+				g.SendVote(id, Vote{
+					Salt:   <-salt,
+					Option: <-option,
+				}, participants, key, position)
+			}
 			break Timeout
 		}
 	}
