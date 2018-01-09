@@ -11,42 +11,58 @@ import (
 	"time"
 )
 
+const PackBigIntBase = 36 // len(0-9) + len(a-z)
+
 type PollKey struct {
 	Origin ecdsa.PublicKey
 	ID     uint64
 }
 
-type PollKeyMap struct {
-	X  string
-	Y  string
-	ID uint64
+type PublicKeyMap struct {
+	X string
+	Y string
 }
 
-const PollKeyMapPackBase = 36 // len(0-9) + len(a-z)
-func (k PollKey) Pack() PollKeyMap {
-	return PollKeyMap{
-		X:  k.Origin.X.Text(PollKeyMapPackBase),
-		Y:  k.Origin.Y.Text(PollKeyMapPackBase),
-		ID: k.ID,
+func PublicKeyMapFromEcdsa(k ecdsa.PublicKey) PublicKeyMap {
+	return PublicKeyMap{
+		X: k.X.Text(PackBigIntBase),
+		Y: k.Y.Text(PackBigIntBase),
 	}
 }
 
-func (k PollKeyMap) Unpack() PollKey {
+func (pk PublicKeyMap) toEcdsa() ecdsa.PublicKey {
 	// TODO we don't handle errors, as it should be safe world
-	x, _ := new(big.Int).SetString(k.X, PollKeyMapPackBase)
-	y, _ := new(big.Int).SetString(k.Y, PollKeyMapPackBase)
+	x, _ := new(big.Int).SetString(pk.X, PackBigIntBase)
+	y, _ := new(big.Int).SetString(pk.Y, PackBigIntBase)
 
 	if x == nil || y == nil {
 		panic("fail to unpack")
 	}
 
+	return ecdsa.PublicKey{
+		Curve: Curve(),
+		X:     x,
+		Y:     y,
+	}
+}
+
+type PollKeyMap struct {
+	Origin PublicKeyMap
+	ID     uint64
+}
+
+func (k PollKey) Pack() PollKeyMap {
+	return PollKeyMap{
+		Origin: PublicKeyMapFromEcdsa(k.Origin),
+		ID:     k.ID,
+	}
+}
+
+func (k PollKeyMap) Unpack() PollKey {
+
 	return PollKey{
-		Origin: ecdsa.PublicKey{
-			Curve: Curve(),
-			X:     x,
-			Y:     y,
-		},
-		ID: k.ID,
+		Origin: k.Origin.toEcdsa(),
+		ID:     k.ID,
 	}
 }
 
@@ -126,18 +142,28 @@ type VoteKey struct {
 	tmpKey    ecdsa.PublicKey
 }
 
-type VoteKeys struct {
-	Keys []VoteKey
+func (vk VoteKey) Pack() VoteKeyMap {
+	return VoteKeyMap{
+		publicKey: PublicKeyMapFromEcdsa(vk.publicKey),
+		tmpKey:    PublicKeyMapFromEcdsa(vk.tmpKey),
+	}
 }
 
-func (msg VoteKeys) Has(c VoteKey) bool {
-	for _, v := range msg.Keys {
-		if v == c {
-			return true
-		}
-	}
+// TODO do not use *Wire
+type VoteKeyMap struct {
+	publicKey PublicKeyMap
+	tmpKey    PublicKeyMap
+}
 
-	return false
+func (vk VoteKeyMap) Unpack() VoteKey {
+	return VoteKey{
+		publicKey: vk.publicKey.toEcdsa(),
+		tmpKey:    vk.tmpKey.toEcdsa(),
+	}
+}
+
+type VoteKeys struct {
+	Keys []VoteKey
 }
 
 func (msg VoteKeys) ToParticipants() [][2]*big.Int {
@@ -170,9 +196,9 @@ type StatusPacket struct {
 }
 
 type GossipPacket struct {
-	Poll      *PollPacket
-	Signature *Signature
-	Status    *StatusPacket
+	Poll       *PollPacket
+	Signature  *Signature
+	Status     *StatusPacket
 	Reputation *ReputationPacket
 }
 

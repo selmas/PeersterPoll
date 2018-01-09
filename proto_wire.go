@@ -259,9 +259,9 @@ func (pkg StatusPacketWire) ToBase() StatusPacket {
 }
 
 type GossipPacketWire struct {
-	Poll      *PollPacketWire
-	Signature *SignatureWire
-	Status    *StatusPacketWire
+	Poll       *PollPacketWire
+	Signature  *SignatureWire
+	Status     *StatusPacketWire
 	Reputation *ReputationPacketWire
 }
 
@@ -327,9 +327,9 @@ func (msg GossipPacket) ToWire() GossipPacketWire {
 	}
 
 	return GossipPacketWire{
-		Poll:      p,
-		Signature: sig,
-		Status:    s,
+		Poll:       p,
+		Signature:  sig,
+		Status:     s,
 		Reputation: r,
 	}
 }
@@ -484,18 +484,21 @@ func (msg LinkableRingSignatureWire) ToBase() LinkableRingSignature {
 }
 
 type VoteKeyWire struct {
-	Key PublicKeyWire
+	PublicKey PublicKeyWire
+	VoteKey   PublicKeyWire
 }
 
 func (msg VoteKey) toWire() VoteKeyWire {
 	return VoteKeyWire{
-		Key: PublicKeyWireFromEcdsa(msg.publicKey),
+		PublicKey: PublicKeyWireFromEcdsa(msg.publicKey),
+		VoteKey:   PublicKeyWireFromEcdsa(msg.publicKey),
 	}
 }
 
 func (msg VoteKeyWire) toBase() VoteKey {
 	return VoteKey{
-		publicKey: msg.Key.toEcdsa(),
+		publicKey: msg.PublicKey.toEcdsa(),
+		tmpKey:    msg.VoteKey.toEcdsa(),
 	}
 }
 

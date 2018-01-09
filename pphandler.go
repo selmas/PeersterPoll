@@ -56,16 +56,21 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 
 		g.SendPoll(id, poll)
 
-		var keys []VoteKey
+		keysMap := make(map[VoteKeyMap]bool)
 	Timeout:
 		for {
 			select {
 			case k := <-r.VoteKey:
-				keys = append(keys, k)
+				keysMap[k.Pack()] = true
 				// TODO check others commits -> bad rep
 			case <-time.After(poll.Duration):
 				break Timeout
 			}
+		}
+
+		var keys []VoteKey
+		for k, _ := range keysMap {
+			keys = append(keys, k.Unpack())
 		}
 
 		voteKeys := VoteKeys{
@@ -84,6 +89,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 
 	position, ok := containsKey(participants, key.PublicKey)
 	if !ok {
+		log.Printf("%s: not considered for this vote, abort", logName)
 		return // we are not part of this vote
 	}
 
