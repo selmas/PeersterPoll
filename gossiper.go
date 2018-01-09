@@ -183,11 +183,11 @@ func (s *RunningPollSet) Add(k PollKey, handler PoolPacketHandler) {
 	go handler(k, r)
 }
 
-func (s *RunningPollSet) Send(k PollKey, pkg PollPacket) {
+func (s *RunningPollSet) Send(pkg PollPacket) {
 	s.RLock()
 	defer s.RUnlock()
 
-	r := s.m[k]
+	r := s.m[pkg.ID]
 	r.Send(pkg)
 }
 
@@ -526,7 +526,7 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			}
 
 			assert(g.RunningPolls.Has(poll.ID))
-			g.RunningPolls.Send(poll.ID, poll)
+			g.RunningPolls.Send(poll)
 		}
 
 		if pkg.Status != nil {

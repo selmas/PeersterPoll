@@ -16,6 +16,40 @@ type PollKey struct {
 	ID     uint64
 }
 
+type PollKeyMap struct {
+	X  string
+	Y  string
+	ID uint64
+}
+
+const PollKeyMapPackBase = 36 // len(0-9) + len(a-z)
+func (k PollKey) Pack() PollKeyMap {
+	return PollKeyMap{
+		X:  k.Origin.X.Text(PollKeyMapPackBase),
+		Y:  k.Origin.Y.Text(PollKeyMapPackBase),
+		ID: k.ID,
+	}
+}
+
+func (k PollKeyMap) Unpack() PollKey {
+	// TODO we don't handle errors, as it should be safe world
+	x, _ := new(big.Int).SetString(k.X, PollKeyMapPackBase)
+	y, _ := new(big.Int).SetString(k.Y, PollKeyMapPackBase)
+
+	if x == nil || y == nil {
+		panic("fail to unpack")
+	}
+
+	return PollKey{
+		Origin: ecdsa.PublicKey{
+			Curve: Curve(),
+			X:     x,
+			Y:     y,
+		},
+		ID: k.ID,
+	}
+}
+
 const PollKeySep = "|"
 
 func (msg PollKey) String() string {

@@ -42,11 +42,26 @@ new_key() {
 	client key new "$origin"
 }
 
-new_poll() {
+poll_new() {
 	local port=$1
 	shift
 
 	client -UIPort $port poll new "$@"
+}
+
+poll_list_contains_id() {
+	local port=$1
+	local id=$2
+
+	client -UIPort $port poll list | grep -q "$id"
+}
+
+vote_put() {
+	local port=$1
+	local id=$2
+	local option=$3
+
+	client -UIPort $port vote put "$id" "$option"
 }
 
 log_check() {
