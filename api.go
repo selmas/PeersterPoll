@@ -136,7 +136,7 @@ func apiGetPollResults(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 func apiGetPolls(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		g.Polls.RLock()
-		defer g.Polls.RLock()
+		defer g.Polls.RUnlock()
 
 		infos := make([]string, 0)
 		for id := range g.Polls.m {
