@@ -16,6 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"strings"
 )
 
 type ShareablePollInfo struct {
@@ -83,8 +84,16 @@ func (s *PollSet) Store(pkg PollPacket) bool {
 		poll := *pkg.Poll
 
 		// TODO poll != *info.Poll -> bad rep
+		exist := false
+		if info.Poll.Question == poll.Question &&
+			info.Poll.StartTime.Equal(poll.StartTime) &&
+			info.Poll.Duration.Minutes() == poll.Duration.Minutes() &&
+			strings.Join(info.Poll.Options, ",") == strings.Join(poll.Options,",")
+			{
+				exist = true
+		}
 
-		if info.Poll.Question != poll.Question { // TODO full cmp
+		if !exist{
 			added = true
 			info.Poll = poll
 			info.Tags = make(map[[2]*big.Int][]Commitment)
