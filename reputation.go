@@ -79,12 +79,9 @@ func (bList Blacklist) String() string {
 // Reputation Info -------------------------------------------------------------------------------
 
 type ReputationInfo struct {
-	Opinions  RepOpinions
-	Blacklist Blacklist
-
+	Opinions      RepOpinions
+	Blacklist     Blacklist
 	PeersOpinions map[PollKey]map[ecdsa.PublicKey]RepOpinions
-
-	//TODO create channel for every poll when it starts
 	AddTablesWait map[PollKey]chan bool
 }
 
@@ -148,10 +145,12 @@ func tempUpdateRep(peer string, rep int, repTable map[string]int) {
 	repTable[peer] += rep
 }
 
+// TODO add to drop malicious traffic
 func (repInfo ReputationInfo) IsBlacklisted(peer string) bool {
 	return repInfo.Blacklist.IsBlacklisted(peer)
 }
 
+// TODO make sure it is used everywhere
 func (repInfo ReputationInfo) Suspect(peer string) {
 	repInfo.Opinions.Suspect(peer)
 	repInfo.Blacklist.add(peer)
@@ -165,7 +164,6 @@ type ReputationPacket struct {
 	PollID   PollKey
 }
 
-// TODO add this to protocol
 func UpdateReputations(g *Gossiper, pollID PollKey) {
 
 	g.SendReputation(pollID, nil)
@@ -174,7 +172,6 @@ func UpdateReputations(g *Gossiper, pollID PollKey) {
 }
 
 func (g *Gossiper) SendReputationPacket(msg *ReputationPacket, sig *Signature, fromPeer *net.UDPAddr) {
-	// TODO status for this or just send to all except fromPeer
 	for {
 		peer := getRandomPeer(&g.Peers, fromPeer)
 		if peer == nil {
@@ -195,7 +192,6 @@ func (g *Gossiper) SendReputation(key PollKey, fromPeer *net.UDPAddr) {
 		PollID:   key,
 		Opinions: g.Reputations.Opinions,
 		Signer:   g.KeyPair.PublicKey,
-		// use this to verify
 	}
 
 	sig, err := repSignature(g, pkg)

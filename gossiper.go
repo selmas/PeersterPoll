@@ -510,6 +510,7 @@ func syncStatus(g *Gossiper, peer net.UDPAddr, rcvStatus StatusPacket) {
 		_, exist := rcvStatus.toWire().ReputationPkts[wireSig]
 		if !exist {
 			sig := wireSig.toBase()
+			// TODO using parameter fromPeer will not send to peer - maybe use writeToUDP directly?
 			g.SendReputationPacket(g.Status.ReputationStatus[sig], &sig, &peer)
 		}
 	}
@@ -518,6 +519,7 @@ func syncStatus(g *Gossiper, peer net.UDPAddr, rcvStatus StatusPacket) {
 		_, exist := rcvStatus.toWire().PollPkts[wireSig]
 		if !exist {
 			sig := wireSig.toBase()
+			// TODO using parameter fromPeer will not send to peer - maybe use writeToUDP directly?
 			g.SendPollPacket(g.Status.PktStatus[sig], &sig, &peer)
 		}
 	}
@@ -603,12 +605,13 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			// store Reputation in receivedOpinions[poll]
 			g.Reputations.AddPeerOpinion(pkg.Reputation, pollID)
 
-			/* TODO if recvRep.len == #peers || timeout{
-				g.ReputationPkts.AddReputations(pollID)
-				g.ReputationPkts.AddTablesWait[pollID] <- true
-			}*/
+			if len(g.Reputations.PeersOpinions[pollID]) == len(g.Polls.m[pollID.Pack()].Participants) {
+				// TODO or if timedout
+				g.Reputations.AddReputations(pollID)
+				g.Reputations.AddTablesWait[pollID] <- true
+			}
 
-			//TODO gossip packet
+			g.SendReputation(pollID,&fromPeer)
 		}
 	}
 }

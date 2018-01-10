@@ -68,7 +68,7 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 			select {
 			case k := <-r.VoteKey:
 				_, ok := containsKey(g.ValidKeys, k.publicKey)
-				if ok { // TODO && notBlacklisted
+				if ok {
 					keysMap[k.Pack()] = true
 				}
 			case <-time.After(poll.Duration):
@@ -106,6 +106,8 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 
 	salt := make(chan [SaltSize]byte)
 	option := make(chan string)
+
+	g.Reputations.AddTablesWait[id] = make(chan bool)
 
 	go func() {
 		o := <-r.LocalVote
@@ -161,6 +163,6 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 		}
 	}
 
-	// TODO consensus on blacklist??
+	UpdateReputations(g,id)
 	// TODO locally compute all votes and display to user -> GUI
 }
