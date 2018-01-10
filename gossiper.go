@@ -61,7 +61,6 @@ func (s *PollSet) Get(k PollKey) PollInfo {
 	return s.m[k.Pack()]
 }
 
-// initialize tags mapping
 func (s *PollSet) Store(pkg PollPacket) {
 	s.Lock()
 	defer s.Unlock()
@@ -547,25 +546,23 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			poll := *pkg.Poll
 
 			if !g.SignatureValid(pkg) {
-				log.Println("invalid signature found but not handled")
-				// TODO suspect peer
+				log.Println("invalid signature found, suspect sender "+fromPeer.String())
+				g.Reputations.Suspect(fromPeer.String())
 				return
 			}
 
 			if pkg.Signature.Linkable != nil {
 				if doubleVoted(g, pkg) {
-					log.Println("double vote but not handled")
-					// TODO suspect peer
+					log.Println("double vote, suspect sender "+fromPeer.String())
+					g.Reputations.Suspect(fromPeer.String())
 					return
 				}
-
-				tags, ok := g.Polls.m[pkg.Poll.ID.Pack()].Tags[pkg.Signature.Linkable.Tag]
-				if ok {
-					tags = append(tags, *pkg.Poll.Commitment)
-				} else {
-					tags = []Commitment{*pkg.Poll.Commitment}
+				if invalideVote(g, pkg) {
+					log.Println("invalid open message , suspect sender "+fromPeer.String())
+					g.Reputations.Suspect(fromPeer.String())
+					return
 				}
-				g.Polls.m[pkg.Poll.ID.Pack()].Tags[pkg.Signature.Linkable.Tag] = tags
+				g.storeTag(pkg)
 			}
 
 			poll.Print(fromPeer)
@@ -646,6 +643,42 @@ func (g *Gossiper) SignatureValid(pkg GossipPacket) bool {
 		}
 	}
 	return false
+}
+func (g *Gossiper) storeTag(pkg GossipPacket) {
+	commitments, ok := g.Polls.m[pkg.Poll.ID.Pack()].Tags[pkg.Signature.Linkable.Tag]
+
+	var commit Commitment
+	if pkg.Poll.Commitment != nil {
+		commit = *pkg.Poll.Commitment
+	} else if pkg.Poll.Vote != nil {
+		vote := *pkg.Poll.Vote
+
+		toHash := make([]byte, 0)
+		toHash = append(toHash, []byte(vote.Option)[:]...)
+		toHash = append(toHash, vote.Salt[:]...)
+
+		hash := sha256.Sum256(toHash)
+
+		commit = Commitment{
+			Hash: hash,
+		}
+	}
+
+	if !ok {
+		commitments = []Commitment{}
+	}
+
+	addCommitment := true
+	for _, com := range commitments{
+		if string(com.Hash[:]) == string(commit.Hash[:]){
+			addCommitment = false
+		}
+	}
+
+	if addCommitment {
+		commitments = append(commitments, commit)
+	}
+	g.Polls.m[pkg.Poll.ID.Pack()].Tags[pkg.Signature.Linkable.Tag] = commitments
 }
 
 func parseAddr(str string) *net.UDPAddr {
