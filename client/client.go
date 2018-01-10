@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"log"
+	"net/http"
 	"strconv"
 )
 
@@ -17,6 +19,18 @@ func (s Settings) getUrl(elems ...string) string {
 	}
 
 	return url
+}
+
+func checkResp(r *http.Response) {
+	if r.StatusCode != 200 {
+		log.Fatalf("HTTP status error, got %d", r.StatusCode)
+	}
+}
+
+func check(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {

@@ -92,7 +92,9 @@ func (msg Vote) toWire() VoteWire {
 }
 
 func (msg VoteWire) toBase() Vote {
-	var v Vote
+	v := Vote{
+		Option: msg.Option,
+	}
 	copy(v.Salt[:], msg.Salt)
 	return v
 }
@@ -183,7 +185,7 @@ func (msg PollPacket) toWire() PollPacketWire {
 }
 
 func (msg PollPacketWire) toBase() PollPacket {
-	const head = "GossipPacketWire: "
+	const head = "PollPacketWire: "
 
 	ret := PollPacket{
 		ID:   msg.ID.toBase(),
@@ -283,6 +285,10 @@ func (pkg GossipPacketWire) Check() error {
 	if pkg.Status != nil {
 		nilCount++
 		err = pkg.Status.check()
+	}
+
+	if pkg.Reputation != nil {
+		nilCount++
 	}
 
 	if err != nil {

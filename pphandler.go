@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const NetworkConvergeDuration = time.Duration(10) * time.Second
+const NetworkConvergeDuration = time.Duration(3) * time.Second
 
 type PoolPacketHandler func(PollKey, ecdsa.PrivateKey, RunningPollReader)
 
@@ -167,6 +167,8 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 			break
 		}
 	}
+
+	log.Printf("%s: pool's closed", logName)
 
 	UpdateReputations(g, id)
 

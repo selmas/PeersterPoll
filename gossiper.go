@@ -19,7 +19,7 @@ import (
 )
 
 type ShareablePollInfo struct {
-	Poll         *Poll
+	Poll         Poll
 	Participants [][2]big.Int
 	Commitments  []Commitment
 	Votes        []Vote
@@ -82,7 +82,7 @@ func (s *PollSet) Store(pkg PollPacket) {
 
 		// TODO poll != *info.Poll -> bad rep
 
-		info.Poll = &poll
+		info.Poll = poll
 		info.Tags = make(map[[2]*big.Int][]Commitment)
 	}
 
