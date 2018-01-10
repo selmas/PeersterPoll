@@ -64,6 +64,13 @@ vote_put() {
 	client -UIPort $port vote put "$id" "$option"
 }
 
+vote_show() {
+	local port=$1
+	local id=$2
+
+	client -UIPort $port vote show "$id"
+}
+
 log_check() {
 	local name=$1
 	local pattern=$2

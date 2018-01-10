@@ -5,22 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 )
-
-func checkResp(r *http.Response) {
-	if r.StatusCode != 200 {
-		log.Fatalf("HTTP status error, got %d", r.StatusCode)
-	}
-}
-
-func check(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
 
 func poll_new(s Settings, args []string) {
 	url := s.getUrl("poll")

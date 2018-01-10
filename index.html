@@ -66,7 +66,7 @@
 
         function poll_results_updater(pollId) {
             return function () {
-                $.ajax("/vote"+pollId, {
+                $.ajax("/vote/"+pollId, {
                     dataType: "json",
                     success: handle_poll_results(pollId)
                 })
@@ -81,7 +81,8 @@
             if (currentQuestion.get(pollId) === undefined) {
                 return
             }
-            myAnswer.set(pollId, $("answer"+pollId).val());
+            console.log("My Answer: " + $("#answer"+pollId).val())
+            myAnswer.set(pollId, $("#answer"+pollId).val());
             $.post("/vote/"+pollId, myAnswer.get(pollId));
             document.getElementById("resultDiv" + pollId + "").style.display = "block";
             document.getElementById("answerPoll" + pollId + "").style.display = "none";

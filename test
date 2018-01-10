@@ -13,8 +13,11 @@ id="$(poll_new 10000 "What's the time?" "11:48:37" "Soon food!" "Time is an huma
 log_wait B "Poll $id"
 
 poll_list_contains_id 10000 "$id"
+poll_list_contains_id 10001 "$id"
 
 vote_put 10000 "$id" "Soon food!"
 vote_put 10001 "$id" "Soon food!"
 
 read
+
+vote_show 10001 "$id"

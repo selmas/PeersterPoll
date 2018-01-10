@@ -2,7 +2,6 @@ package pollparty
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -115,7 +114,7 @@ func apiGetPollResults(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 		info := g.Polls.Get(id)
 		results := info.Results()
 
-		fmt.Println("Results to send to GUI:", results)
+		log.Println("Results to send to GUI:", results)
 
 		bytes, err := json.Marshal(results)
 
