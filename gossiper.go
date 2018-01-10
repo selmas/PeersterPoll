@@ -557,7 +557,7 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 					g.Reputations.Suspect(fromPeer.String())
 					return
 				}
-				if invalideVote(g, pkg) {
+				if pkg.Poll.Vote != nil && invalidVote(g, pkg) {
 					log.Println("invalid open message , suspect sender "+fromPeer.String())
 					g.Reputations.Suspect(fromPeer.String())
 					return
@@ -606,6 +606,24 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			//TODO gossip packet
 		}
 	}
+}
+
+func invalidVote(g *Gossiper, pkg GossipPacket) bool {
+	var hash [sha256.Size]byte
+	vote := *pkg.Poll.Vote
+
+	toHash := make([]byte, 0)
+	toHash = append(toHash, []byte(vote.Option)[:]...)
+	toHash = append(toHash, vote.Salt[:]...)
+
+	hash = sha256.Sum256(toHash)
+
+	storedPkg, ok := g.Status.PktStatus[*pkg.Signature]
+	if ok && string(storedPkg.Commitment.Hash[:]) == string(hash[:]){
+		return false
+	}
+
+	return true
 }
 
 func doubleVoted(g *Gossiper, pkg GossipPacket) bool {
