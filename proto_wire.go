@@ -468,11 +468,11 @@ func (msg LinkableRingSignatureWire) toBase() LinkableRingSignature {
 	ret := LinkableRingSignature{
 		Message: msg.Message,
 		C0:      msg.C0,
-		S:       make([]*big.Int, len(msg.S)),
+		S:       make([]*big.Int, 0),
 	}
 
-	for i, s := range msg.S {
-		ret.S[i] = new(big.Int).SetBytes(s)
+	for _, s := range msg.S {
+		ret.S = append(ret.S, new(big.Int).SetBytes(s))
 	}
 
 	for i, t := range msg.Tag {

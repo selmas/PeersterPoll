@@ -11,58 +11,9 @@ import (
 	"time"
 )
 
-const PackBigIntBase = 36 // len(0-9) + len(a-z)
-
 type PollKey struct {
 	Origin ecdsa.PublicKey
 	ID     uint64
-}
-
-type PublicKeyMap struct {
-	X string
-	Y string
-}
-
-func PublicKeyMapFromEcdsa(k ecdsa.PublicKey) PublicKeyMap {
-	return PublicKeyMap{
-		X: k.X.Text(PackBigIntBase),
-		Y: k.Y.Text(PackBigIntBase),
-	}
-}
-
-func (pk PublicKeyMap) toEcdsa() ecdsa.PublicKey {
-	// TODO we don't handle errors, as it should be safe world
-	x, _ := new(big.Int).SetString(pk.X, PackBigIntBase)
-	y, _ := new(big.Int).SetString(pk.Y, PackBigIntBase)
-
-	if x == nil || y == nil {
-		panic("fail to unpack")
-	}
-
-	return ecdsa.PublicKey{
-		Curve: Curve(),
-		X:     x,
-		Y:     y,
-	}
-}
-
-type PollKeyMap struct {
-	Origin PublicKeyMap
-	ID     uint64
-}
-
-func (k PollKey) Pack() PollKeyMap {
-	return PollKeyMap{
-		Origin: PublicKeyMapFromEcdsa(k.Origin),
-		ID:     k.ID,
-	}
-}
-
-func (k PollKeyMap) Unpack() PollKey {
-	return PollKey{
-		Origin: k.Origin.toEcdsa(),
-		ID:     k.ID,
-	}
 }
 
 const PollKeySep = "|"
@@ -138,26 +89,6 @@ func NewCommitment(answer string) (Commitment, [SaltSize]byte) {
 type VoteKey struct {
 	publicKey ecdsa.PublicKey
 	tmpKey    ecdsa.PublicKey
-}
-
-func (vk VoteKey) Pack() VoteKeyMap {
-	return VoteKeyMap{
-		publicKey: PublicKeyMapFromEcdsa(vk.publicKey),
-		tmpKey:    PublicKeyMapFromEcdsa(vk.tmpKey),
-	}
-}
-
-// TODO do not use *Wire
-type VoteKeyMap struct {
-	publicKey PublicKeyMap
-	tmpKey    PublicKeyMap
-}
-
-func (vk VoteKeyMap) Unpack() VoteKey {
-	return VoteKey{
-		publicKey: vk.publicKey.toEcdsa(),
-		tmpKey:    vk.tmpKey.toEcdsa(),
-	}
 }
 
 type VoteKeys struct {

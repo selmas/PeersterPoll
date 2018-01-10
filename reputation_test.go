@@ -1,10 +1,10 @@
 package pollparty
 
 import (
-	"testing"
 	"crypto/ecdsa"
-	"math/big"
 	"fmt"
+	"math/big"
+	"testing"
 )
 
 /*func TestMain(m *testing.M) {

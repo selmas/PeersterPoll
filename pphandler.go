@@ -126,6 +126,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 
 	voteSent := false
 	timedout := false
+	timeout := time.After(NetworkConvergeDuration)
 	for {
 		select {
 		case commit := <-r.Commitment:
@@ -142,7 +143,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 			}
 		case vote := <-r.Vote:
 			if len(commits) < len(keys.Keys) || timedout {
-				myStatus := getStatus(g)
+				myStatus := getStatus(g).toBase()
 				writeMsgToUDP(g.Server, vote.Sender, nil, &myStatus, nil, nil)
 				// TODO wait for reply (timeout)
 				if len(commits) < len(keys.Keys) {
@@ -150,7 +151,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 				}
 			}
 			votes = append(votes, vote.Vote)
-		case <-time.After(NetworkConvergeDuration):
+		case <-timeout:
 			log.Printf("%s: timeout", logName)
 			timedout = true
 			if !voteSent {
@@ -161,8 +162,15 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 				log.Printf("%s: send vote at timeout", logName)
 			}
 		}
+
+		if len(votes) == len(keys.Keys) && len(commits) == len(keys.Keys) {
+			break
+		}
 	}
 
-	UpdateReputations(g,id)
+	UpdateReputations(g, id)
+
+	// TODO check votes' salts
+	// TODO consensus on blacklist??
 	// TODO locally compute all votes and display to user -> GUI
 }

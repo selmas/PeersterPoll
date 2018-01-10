@@ -96,7 +96,6 @@ func linkableRingSignature(msg []byte, L [][2]big.Int, tmpKey *ecdsa.PrivateKey,
 		} else {
 			c[i+1] = hash.Sum(nil)
 		}
-
 	}
 
 	// c[i] = hash(L, Tag, msg, siG + siYi, siH + ciTag)
