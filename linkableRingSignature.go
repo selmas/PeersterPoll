@@ -108,7 +108,7 @@ func linkableRingSignature(msg []byte, L [][2]big.Int, tmpKey *ecdsa.PrivateKey,
 		}
 
 		siGx, siGy := Curve().ScalarBaseMult(s[i].Bytes())
-		ciYix, ciYiy := Curve().ScalarMult(L[i][0], L[i][1], c[i])
+		ciYix, ciYiy := Curve().ScalarMult(&L[i][0], &L[i][1], c[i])
 		siGciYix, siGciYiy := Curve().Add(siGx, siGy, ciYix, ciYiy)
 
 		siHx, siHy := Curve().ScalarMult(Hx, Hy, s[i].Bytes())

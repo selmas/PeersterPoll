@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const NetworkConvergeDuration = time.Duration(3) * time.Second
+const NetworkConvergeDuration = time.Duration(10) * time.Second
 
 type PoolPacketHandler func(PollKey, ecdsa.PrivateKey, RunningPollReader)
 
@@ -110,11 +110,14 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 	go func() {
 		o := <-r.LocalVote
 		log.Printf("%s: got local vote for \"%s\"", logName, o)
+
 		commit, s := NewCommitment(o)
-		salt <- s
-		option <- o
 		g.SendCommitment(id, commit, participants, key, position)
 		log.Printf("%s: send commit for \"%s\"", logName, o)
+
+		salt <- s
+		option <- o
+
 		close(salt)
 		close(option)
 	}()

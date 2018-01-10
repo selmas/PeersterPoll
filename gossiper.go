@@ -316,7 +316,7 @@ func NewPollKey(g *Gossiper) PollKey {
 type Dispatcher func(net.UDPAddr, GossipPacket)
 
 func RunServer(gossiper *Gossiper, server Server, dispatcher Dispatcher) {
-	buf := make([]byte, 1024)
+	buf := make([]byte, 16*1024)
 
 	for {
 		bufSize, peerAddr, err := server.Conn.ReadFromUDP(buf)

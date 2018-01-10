@@ -115,7 +115,6 @@ func (p Poll) IsTooLate() bool {
 
 const SaltSize = 20
 
-// TODO not here, only used with voting
 type Commitment struct {
 	Hash [sha256.Size]byte
 }
