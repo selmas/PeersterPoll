@@ -16,7 +16,7 @@ type PollKey struct {
 	ID     uint64
 }
 
-const PollKeySep = "|"
+const PollKeySep = "_"
 
 func (msg PollKey) String() string {
 	return msg.Origin.X.String() + PollKeySep + msg.Origin.Y.String() + PollKeySep + strconv.FormatUint(msg.ID, 10)
