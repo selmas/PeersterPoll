@@ -10,14 +10,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// TODO delete this
-type FakeGossiper struct {
-	PollQuestion string
-	PollOptions  []string
-	PollResults  string
-	MyPollVote   string
-}
-
 func apiStartPoll(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 	buf := make([]byte, 1024)
 
@@ -35,8 +27,8 @@ func apiStartPoll(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 			Poll: &Poll{
 				Question:  question,
 				Options:   options,
-				StartTime: time.Now(),                     // TODO user customizable
-				Duration:  time.Duration(3 * time.Second), // TODO user customizable
+				StartTime: time.Now(),
+				Duration:  time.Duration(3 * time.Second),
 			},
 		}
 

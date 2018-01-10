@@ -25,14 +25,15 @@ func (pkg PollPacket) Print(clientAddr net.UDPAddr) {
 func (msg StatusPacket) Print(clientAddr net.UDPAddr) {
 	var str string
 	str += "STATUS from " + clientAddr.String()
-
-	/* TODO for _, s := range msg.Want {
-		str += " poll origin " + s.key.PollOrigin
-		str += " ID " + strconv.FormatUint(uint64(s.key.PollID), 10)
-		// todo: add meaningful output for status
-	}*/
+	if msg.ReputationPkts != nil {
+		str += ", sync REPUTATION table"
+	}
+	if msg.PollPkts != nil {
+		str += ", sync POLLPACKET"
+	}
 	fmt.Println(str)
 }
+
 
 func printFlippedCoin(addr *net.UDPAddr, typeOfFlip string) {
 	fmt.Println("FLIPPED COIN sending", typeOfFlip, "to", addr.String())

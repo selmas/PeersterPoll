@@ -145,12 +145,10 @@ func tempUpdateRep(peer string, rep int, repTable map[string]int) {
 	repTable[peer] += rep
 }
 
-// TODO add to drop malicious traffic
 func (repInfo ReputationInfo) IsBlacklisted(peer string) bool {
 	return repInfo.Blacklist.IsBlacklisted(peer)
 }
 
-// TODO make sure it is used everywhere
 func (repInfo ReputationInfo) Suspect(peer string) {
 	repInfo.Opinions.Suspect(peer)
 	repInfo.Blacklist.add(peer)
