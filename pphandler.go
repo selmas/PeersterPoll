@@ -17,7 +17,6 @@ func VoterHandler(g *Gossiper) PoolPacketHandler {
 		log.Println("Voter: new poll:", id.String())
 
 		voteKey := VoteKey{
-			publicKey: g.KeyPair.PublicKey,
 			tmpKey:    key.PublicKey,
 		}
 		g.SendVoteKey(id, voteKey)
@@ -58,7 +57,6 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 
 		keysMap := make(map[VoteKeyMap]bool)
 		mapKey := VoteKey{
-			publicKey: g.KeyPair.PublicKey,
 			tmpKey:    key.PublicKey,
 		}.Pack()
 		keysMap[mapKey] = true
@@ -67,10 +65,8 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 		for {
 			select {
 			case k := <-r.VoteKey:
-				_, ok := containsKey(g.ValidKeys, k.publicKey)
-				if ok {
-					keysMap[k.Pack()] = true
-				}
+				keysMap[k.Pack()] = true
+
 			case <-time.After(poll.Duration):
 				break Timeout
 			}
@@ -171,8 +167,4 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 	log.Printf("%s: pool's closed", logName)
 
 	UpdateReputations(g, id)
-
-	// TODO check votes' salts
-	// TODO consensus on blacklist??
-	// TODO locally compute all votes and display to user -> GUI
 }

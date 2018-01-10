@@ -38,7 +38,6 @@ func PublicKeyMapFromEcdsa(k ecdsa.PublicKey) PublicKeyMap {
 }
 
 func (pk PublicKeyMap) toEcdsa() ecdsa.PublicKey {
-	// TODO we don't handle errors, as it should be safe world
 	x, _ := new(big.Int).SetString(pk.X, PackBigIntBase)
 	y, _ := new(big.Int).SetString(pk.Y, PackBigIntBase)
 
@@ -74,12 +73,10 @@ func (k PollKeyMap) Unpack() PollKey {
 
 func (vk VoteKey) Pack() VoteKeyMap {
 	return VoteKeyMap{
-		publicKey: PublicKeyMapFromEcdsa(vk.publicKey),
 		tmpKey:    PublicKeyMapFromEcdsa(vk.tmpKey),
 	}
 }
 
-// TODO do not use *Wire
 type VoteKeyMap struct {
 	publicKey PublicKeyMap
 	tmpKey    PublicKeyMap
@@ -87,7 +84,6 @@ type VoteKeyMap struct {
 
 func (vk VoteKeyMap) Unpack() VoteKey {
 	return VoteKey{
-		publicKey: vk.publicKey.toEcdsa(),
 		tmpKey:    vk.tmpKey.toEcdsa(),
 	}
 }

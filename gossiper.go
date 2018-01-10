@@ -88,8 +88,7 @@ func (s *PollSet) Store(pkg PollPacket) bool {
 		if info.Poll.Question == poll.Question &&
 			info.Poll.StartTime.Equal(poll.StartTime) &&
 			info.Poll.Duration.Minutes() == poll.Duration.Minutes() &&
-			strings.Join(info.Poll.Options, ",") == strings.Join(poll.Options,",")
-			{
+			strings.Join(info.Poll.Options, ",") == strings.Join(poll.Options,",") {
 				exist = true
 		}
 
@@ -143,7 +142,6 @@ type VoteAndSender struct {
 	Sender *net.UDPAddr
 }
 
-// TODO maybe split in two to have voter/server separation
 type RunningPollReader struct {
 	Poll       <-chan Poll
 	LocalVote  <-chan string
@@ -267,18 +265,12 @@ type Route struct {
 	Addr     net.UDPAddr
 }
 
-// might be needed for consensus, do not remove
-type RoutingTable struct {
-	sync.RWMutex
-	Table map[string]Route
-}
-
 func Curve() elliptic.Curve {
 	return elliptic.P256()
 }
 
 type Gossiper struct {
-	sync.RWMutex // TODO use everywhere (for id change also)
+	sync.RWMutex
 	Name         string
 	LastID       uint64
 	KeyPair      ecdsa.PrivateKey
@@ -769,8 +761,14 @@ func (g *Gossiper) SignatureValid(pkg GossipPacket) bool {
 		hash := sha256.Sum256(input)
 
 		if poll.VoteKey != nil {
-			return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.VoteKey.publicKey, hash[:],
-				&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)
+			for _,pubkey := range g.ValidKeys{
+				ecKey := ecdsa.PublicKey{Curve(), &pubkey[0], &pubkey[1]}
+				if  pkg.Signature.Elliptic != nil && ecdsa.Verify(&ecKey, hash[:],
+					&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S){
+					return true
+				}
+			}
+			return false
 		} else {
 			return pkg.Signature.Elliptic != nil && ecdsa.Verify(&pkg.Poll.ID.Origin, hash[:],
 				&pkg.Signature.Elliptic.R, &pkg.Signature.Elliptic.S)

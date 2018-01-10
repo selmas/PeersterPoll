@@ -74,7 +74,6 @@ func NewCommitment(answer string) (Commitment, [SaltSize]byte) {
 	var salt [SaltSize]byte
 	rand.Read(salt[:])
 
-	// TODO move to dedicated hash func
 	toHash := make([]byte, 0)
 	toHash = append(toHash, []byte(answer)[:]...)
 	toHash = append(toHash, salt[:]...)
@@ -87,7 +86,6 @@ func NewCommitment(answer string) (Commitment, [SaltSize]byte) {
 }
 
 type VoteKey struct {
-	publicKey ecdsa.PublicKey
 	tmpKey    ecdsa.PublicKey
 }
 
