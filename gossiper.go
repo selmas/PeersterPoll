@@ -83,7 +83,6 @@ func (s *PollSet) Store(pkg PollPacket) bool {
 	if pkg.Poll != nil {
 		poll := *pkg.Poll
 
-		// TODO poll != *info.Poll -> bad rep
 		exist := false
 		if info.Poll.Question == poll.Question &&
 			info.Poll.StartTime.Equal(poll.StartTime) &&

@@ -87,7 +87,6 @@ func apiVoteForPoll(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		// TODO check that option is vote
 		// might block so go!
 		go func() {
 			g.RunningPolls.Get(id).LocalVote <- option
