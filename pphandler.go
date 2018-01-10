@@ -13,7 +13,7 @@ type PoolPacketHandler func(PollKey, ecdsa.PrivateKey, RunningPollReader)
 
 func VoterHandler(g *Gossiper) PoolPacketHandler {
 	return func(id PollKey, key ecdsa.PrivateKey, r RunningPollReader) {
-		_ = <-r.Poll // TODO poll not used?
+		_ = <-r.Poll
 		log.Println("Voter: new poll:", id.String())
 
 		voteKey := VoteKey{
@@ -141,7 +141,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 			if len(commits) < len(keys.Keys) || timedout {
 				myStatus := getStatus(g).toBase()
 				writeMsgToUDP(g.Server, vote.Sender, nil, &myStatus, nil, nil)
-				time.Sleep(time.Duration(50) * time.Millisecond) // TODO how much??
+				time.Sleep(time.Duration(250) * time.Millisecond)
 				if len(commits) < len(keys.Keys) {
 					g.Reputations.Suspect(vote.Sender.String())
 				}

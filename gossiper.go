@@ -705,7 +705,6 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			g.Reputations.AddPeerOpinion(pkg.Reputation, pollID)
 
 			if len(g.Reputations.PeersOpinions[pollID]) == len(g.Polls.Get(pollID).Participants) {
-				// TODO or if timedout
 				g.Reputations.AddReputations(pollID)
 				g.Reputations.AddTablesWait[pollID] <- true
 			}

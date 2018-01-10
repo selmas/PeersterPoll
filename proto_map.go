@@ -149,7 +149,7 @@ func (s EllipticCurveSignatureMap) toBase() EllipticCurveSignature {
 type LinkableRingSignatureMap struct {
 	Message string
 	C0      string
-	S       [32]BigIntMap // TODO depends on max network size, thanks go
+	S       [32]BigIntMap
 	SSize   int
 	Tag     [2]BigIntMap
 }
