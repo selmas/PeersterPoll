@@ -134,7 +134,7 @@ func linkableRingSignature(msg []byte, L [][2]big.Int, tmpKey *ecdsa.PrivateKey,
 
 	s[pos] = new(big.Int).Sub(u, privKeyCpos)
 	s[pos] = new(big.Int).Add(s[pos], n)
-	s[pos] = new(big.Int).Mod(s[pos], n) // PROBLEM!!
+	s[pos] = new(big.Int).Mod(s[pos], n)
 
 	return LinkableRingSignature{msg, c[0], s, tag}
 }

@@ -587,7 +587,10 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 
 		if pkg.Reputation != nil {
 
-			// TODO check if packet is new
+			_, exists := g.Status.ReputationStatus[*pkg.Signature]
+			if exists{
+				return
+			}
 
 			if !repSignatureValid(g, pkg) {
 				g.Reputations.Suspect(fromPeer.String())
