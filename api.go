@@ -113,9 +113,7 @@ func apiGetPollResults(g *Gossiper) func(http.ResponseWriter, *http.Request) {
 		}
 
 		info := g.Polls.Get(id)
-
-		//TODO change to get the actual results
-		results := createFakePollResults(info.Poll.Options)
+		results := info.Results()
 
 		fmt.Println("Results to send to GUI:", results)
 

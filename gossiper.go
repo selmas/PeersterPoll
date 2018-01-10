@@ -26,6 +26,16 @@ type ShareablePollInfo struct {
 	Tags         map[[2]*big.Int][]Commitment // mapping from tag to []commitment to detect double voting
 }
 
+func (info ShareablePollInfo) Results() map[string]int {
+	ret := make(map[string]int)
+
+	for _, v := range info.Votes {
+		ret[v.Option]++
+	}
+
+	return ret
+}
+
 type PollInfo struct {
 	ShareablePollInfo
 	Registry *crypto.PublicKey
@@ -265,8 +275,8 @@ func NewServer(address string) Server {
 }
 
 type Status struct {
-	PktStatus        map[Signature]*PollPacket
-	ReputationStatus map[Signature]*ReputationPacket
+	PktStatus        map[SignatureMap]*PollPacket
+	ReputationStatus map[SignatureMap]*ReputationPacket
 }
 
 func NewGossiper(name string, server Server) (*Gossiper, error) {
@@ -296,8 +306,8 @@ func NewGossiper(name string, server Server) (*Gossiper, error) {
 		ValidKeys:   validKeys,
 		Reputations: NewReputationInfo(),
 		Status: Status{
-			make(map[Signature]*PollPacket),
-			make(map[Signature]*ReputationPacket),
+			make(map[SignatureMap]*PollPacket),
+			make(map[SignatureMap]*ReputationPacket),
 		},
 	}, nil
 }
@@ -483,50 +493,54 @@ func (g *Gossiper) SendPollPacket(msg *PollPacket, sig *Signature, fromPeer *net
 	}
 }
 
-func getStatus(g *Gossiper) StatusPacket {
+func getStatus(g *Gossiper) StatusPacketMap {
 	g.Polls.Lock()
 	defer g.Polls.Unlock()
 
-	signatures := make(map[Signature]bool)
+	signatures := make(map[SignatureMap]bool)
 	for sig := range g.Status.PktStatus {
 		signatures[sig] = true
 	}
 
-	reputations := make(map[Signature]bool)
+	reputations := make(map[SignatureMap]bool)
 	for rep := range g.Status.ReputationStatus {
 		reputations[rep] = true
 	}
 
-	return StatusPacket{
+	return StatusPacketMap{
 		signatures,
 		reputations,
 	}
 }
 
-func syncStatus(g *Gossiper, peer net.UDPAddr, rcvStatus StatusPacket) {
+func syncStatus(g *Gossiper, peer net.UDPAddr, status StatusPacket) {
+	rcvStatus := status.toMap()
 	// check if peer is missing something and send it to him
 	myStatus := getStatus(g)
-	for wireSig := range myStatus.toWire().ReputationPkts {
-		_, exist := rcvStatus.toWire().ReputationPkts[wireSig]
+	for wireSig := range myStatus.ReputationPkts {
+		_, exist := rcvStatus.ReputationPkts[wireSig]
 		if !exist {
 			sig := wireSig.toBase()
-			g.SendReputationPacket(g.Status.ReputationStatus[sig], &sig, &peer)
+			// TODO using parameter fromPeer will not send to peer - maybe use writeToUDP directly?
+			g.SendReputationPacket(g.Status.ReputationStatus[wireSig], &sig, &peer)
 		}
 	}
 
-	for wireSig := range myStatus.toWire().PollPkts {
-		_, exist := rcvStatus.toWire().PollPkts[wireSig]
+	for wireSig := range myStatus.PollPkts {
+		_, exist := rcvStatus.PollPkts[wireSig]
 		if !exist {
 			sig := wireSig.toBase()
-			g.SendPollPacket(g.Status.PktStatus[sig], &sig, &peer)
+			// TODO using parameter fromPeer will not send to peer - maybe use writeToUDP directly?
+			g.SendPollPacket(g.Status.PktStatus[wireSig], &sig, &peer)
 		}
 	}
 
 	// check if I am missing something and request it
+	myStatusBase := myStatus.toBase()
 	for rep := range rcvStatus.ReputationPkts {
 		_, exist := myStatus.ReputationPkts[rep]
 		if !exist {
-			writeMsgToUDP(g.Server, &peer, nil, &myStatus, nil, nil)
+			writeMsgToUDP(g.Server, &peer, nil, &myStatusBase, nil, nil)
 			return
 		}
 	}
@@ -534,7 +548,7 @@ func syncStatus(g *Gossiper, peer net.UDPAddr, rcvStatus StatusPacket) {
 	for sig := range rcvStatus.PollPkts {
 		_, exist := myStatus.PollPkts[sig]
 		if !exist {
-			writeMsgToUDP(g.Server, &peer, nil, &myStatus, nil, nil)
+			writeMsgToUDP(g.Server, &peer, nil, &myStatusBase, nil, nil)
 			return
 		}
 	}
@@ -548,19 +562,19 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			poll := *pkg.Poll
 
 			if !g.SignatureValid(pkg) {
-				log.Println("invalid signature found, suspect sender "+fromPeer.String())
+				log.Println("invalid signature found, suspect sender " + fromPeer.String())
 				g.Reputations.Suspect(fromPeer.String())
 				return
 			}
 
 			if pkg.Signature.Linkable != nil {
 				if doubleVoted(g, pkg) {
-					log.Println("double vote, suspect sender "+fromPeer.String())
+					log.Println("double vote, suspect sender " + fromPeer.String())
 					g.Reputations.Suspect(fromPeer.String())
 					return
 				}
 				if pkg.Poll.Vote != nil && invalidVote(g, pkg) {
-					log.Println("invalid open message , suspect sender "+fromPeer.String())
+					log.Println("invalid open message , suspect sender " + fromPeer.String())
 					g.Reputations.Suspect(fromPeer.String())
 					return
 				}
@@ -570,7 +584,7 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 			poll.Print(fromPeer)
 
 			g.Polls.Store(poll)
-			g.Status.PktStatus[*pkg.Signature] = pkg.Poll
+			g.Status.PktStatus[pkg.Signature.toMap()] = pkg.Poll
 
 			if !g.RunningPolls.Has(poll.ID) {
 				g.RunningPolls.Add(poll.ID, VoterHandler(g))
@@ -587,8 +601,8 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 
 		if pkg.Reputation != nil {
 
-			_, exists := g.Status.ReputationStatus[*pkg.Signature]
-			if exists{
+			_, exists := g.Status.ReputationStatus[pkg.Signature.toMap()]
+			if exists {
 				return
 			}
 
@@ -596,19 +610,20 @@ func DispatcherPeersterMessage(g *Gossiper) Dispatcher {
 				g.Reputations.Suspect(fromPeer.String())
 			}
 
-			g.Status.ReputationStatus[*pkg.Signature] = pkg.Reputation
+			g.Status.ReputationStatus[pkg.Signature.toMap()] = pkg.Reputation
 
 			pollID := pkg.Reputation.PollID
 
 			// store Reputation in receivedOpinions[poll]
 			g.Reputations.AddPeerOpinion(pkg.Reputation, pollID)
 
-			/* TODO if recvRep.len == #peers || timeout{
-				g.ReputationPkts.AddReputations(pollID)
-				g.ReputationPkts.AddTablesWait[pollID] <- true
-			}*/
+			if len(g.Reputations.PeersOpinions[pollID]) == len(g.Polls.m[pollID.Pack()].Participants) {
+				// TODO or if timedout
+				g.Reputations.AddReputations(pollID)
+				g.Reputations.AddTablesWait[pollID] <- true
+			}
 
-			//TODO gossip packet
+			g.SendReputation(pollID, &fromPeer)
 		}
 	}
 }
@@ -623,8 +638,8 @@ func invalidVote(g *Gossiper, pkg GossipPacket) bool {
 
 	hash = sha256.Sum256(toHash)
 
-	storedPkg, ok := g.Status.PktStatus[*pkg.Signature]
-	if ok && string(storedPkg.Commitment.Hash[:]) == string(hash[:]){
+	storedPkg, ok := g.Status.PktStatus[pkg.Signature.toMap()]
+	if ok && string(storedPkg.Commitment.Hash[:]) == string(hash[:]) {
 		return false
 	}
 
@@ -635,7 +650,7 @@ func doubleVoted(g *Gossiper, pkg GossipPacket) bool {
 	tag := pkg.Signature.Linkable.Tag
 	commit, stored := g.Polls.m[pkg.Poll.ID.Pack()].Tags[tag]
 
-	if stored && len(commit) == 1{
+	if stored && len(commit) == 1 {
 		return !(string(commit[0].Hash[:]) == string(pkg.Poll.Commitment.Hash[:]))
 	}
 
@@ -692,8 +707,8 @@ func (g *Gossiper) storeTag(pkg GossipPacket) {
 	}
 
 	addCommitment := true
-	for _, com := range commitments{
-		if string(com.Hash[:]) == string(commit.Hash[:]){
+	for _, com := range commitments {
+		if string(com.Hash[:]) == string(commit.Hash[:]) {
 			addCommitment = false
 		}
 	}
@@ -725,7 +740,7 @@ func AntiEntropyGossip(gossiper *Gossiper) {
 		}
 
 		//printFlippedCoin(peer, "status")
-		status := getStatus(gossiper)
+		status := getStatus(gossiper).toBase()
 		writeMsgToUDP(gossiper.Server, peer, nil, &status, nil, nil)
 	}
 }

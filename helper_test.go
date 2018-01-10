@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
-	"math/big"
 )
 
 func TestValidECSignature(t *testing.T) {
@@ -18,7 +18,6 @@ func TestValidECSignature(t *testing.T) {
 		ID:   PollKey{g.KeyPair.PublicKey, uint64(0)},
 		Poll: DummyPoll(),
 	}
-
 
 	sig, err := ecSignature(g, pkg)
 	if err != nil {
@@ -84,7 +83,7 @@ func DummyGossiper() *Gossiper {
 		RunningPollSet{},
 		PollSet{},
 		Server{},
-		make([][2]big.Int,0),
+		make([][2]big.Int, 0),
 		NewReputationInfo(),
 		Status{},
 	}
