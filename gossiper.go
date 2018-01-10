@@ -521,8 +521,7 @@ func syncStatus(g *Gossiper, peer net.UDPAddr, status StatusPacket) {
 		_, exist := rcvStatus.ReputationPkts[wireSig]
 		if !exist {
 			sig := wireSig.toBase()
-			// TODO using parameter fromPeer will not send to peer - maybe use writeToUDP directly?
-			g.SendReputationPacket(g.Status.ReputationStatus[wireSig], &sig, &peer)
+			writeMsgToUDP(g.Server, &peer, nil, nil, &sig, g.Status.ReputationStatus[wireSig])
 		}
 	}
 
@@ -530,8 +529,7 @@ func syncStatus(g *Gossiper, peer net.UDPAddr, status StatusPacket) {
 		_, exist := rcvStatus.PollPkts[wireSig]
 		if !exist {
 			sig := wireSig.toBase()
-			// TODO using parameter fromPeer will not send to peer - maybe use writeToUDP directly?
-			g.SendPollPacket(g.Status.PktStatus[wireSig], &sig, &peer)
+			writeMsgToUDP(g.Server, &peer, g.Status.PktStatus[wireSig], nil, &sig, nil)
 		}
 	}
 
