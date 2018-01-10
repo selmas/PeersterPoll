@@ -141,7 +141,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 			if len(commits) < len(keys.Keys) || timedout {
 				myStatus := getStatus(g).toBase()
 				writeMsgToUDP(g.Server, vote.Sender, nil, &myStatus, nil, nil)
-				time.Sleep(time.Second)
+				time.Sleep(time.Duration(50) * time.Millisecond) // TODO how much??
 				if len(commits) < len(keys.Keys) {
 					g.Reputations.Suspect(vote.Sender.String())
 				}
