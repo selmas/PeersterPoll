@@ -144,7 +144,7 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 				writeMsgToUDP(g.Server, vote.Sender, nil, &myStatus, nil, nil)
 				// TODO wait for reply (timeout)
 				if len(commits) < len(keys.Keys) {
-					// TODO suspect peer
+					g.Reputations.Suspect(vote.Sender.String())
 				}
 			}
 			votes = append(votes, vote.Vote)
