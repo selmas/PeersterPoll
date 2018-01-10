@@ -68,7 +68,7 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 			select {
 			case k := <-r.VoteKey:
 				_,ok := containsKey(g.ValidKeys,k.publicKey)
-				if ok {
+				if ok { // TODO && notBlacklisted
 					keysMap[k.Pack()] = true
 				}
 			case <-time.After(poll.Duration):
