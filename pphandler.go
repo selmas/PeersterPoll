@@ -67,7 +67,7 @@ func MasterHandler(g *Gossiper) PoolPacketHandler {
 		for {
 			select {
 			case k := <-r.VoteKey:
-				_,ok := containsKey(g.ValidKeys,k.publicKey)
+				_, ok := containsKey(g.ValidKeys, k.publicKey)
 				if ok { // TODO && notBlacklisted
 					keysMap[k.Pack()] = true
 				}
@@ -127,7 +127,9 @@ func commonHandler(logName string, g *Gossiper, id PollKey, key ecdsa.PrivateKey
 	for {
 		select {
 		case commit := <-r.Commitment:
-			if !timedout{commits = append(commits, commit)} // do not accept commits after timeout, to prevent influencing
+			if !timedout {
+				commits = append(commits, commit)
+			} // do not accept commits after timeout, to prevent influencing
 			if len(commits) == len(keys.Keys) {
 				g.SendVote(id, Vote{
 					Salt:   <-salt,
