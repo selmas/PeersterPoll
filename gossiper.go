@@ -506,16 +506,18 @@ func getStatus(g *Gossiper) StatusPacket {
 func syncStatus(g *Gossiper, peer net.UDPAddr, rcvStatus StatusPacket) {
 	// check if peer is missing something and send it to him
 	myStatus := getStatus(g)
-	for sig := range myStatus.ReputationPkts {
-		_, exist := rcvStatus.ReputationPkts[sig]
+	for wireSig := range myStatus.toWire().ReputationPkts {
+		_, exist := rcvStatus.toWire().ReputationPkts[wireSig]
 		if !exist {
+			sig := wireSig.toBase()
 			g.SendReputationPacket(g.Status.ReputationStatus[sig], &sig, &peer)
 		}
 	}
 
-	for sig := range myStatus.PollPkts {
-		_, exist := rcvStatus.PollPkts[sig]
+	for wireSig := range myStatus.toWire().PollPkts {
+		_, exist := rcvStatus.toWire().PollPkts[wireSig]
 		if !exist {
+			sig := wireSig.toBase()
 			g.SendPollPacket(g.Status.PktStatus[sig], &sig, &peer)
 		}
 	}
