@@ -399,6 +399,11 @@ func RunServer(gossiper *Gossiper, server Server, dispatcher Dispatcher) {
 			continue
 		}
 
+		if gossiper.Reputations.IsBlacklisted(peerAddr.String()) {
+			log.Println("Received message from blacklisted peer. Ignoring...")
+			continue
+		}
+
 		var msg GossipPacketWire
 		err = protobuf.Decode(buf[:bufSize], &msg)
 		if err != nil {
