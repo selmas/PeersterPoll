@@ -8,29 +8,17 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"reflect"
 )
 
 // Reputation Opinions ---------------------------------------------------------------------------
 
 type RepOpinions map[string]int
 
-// TODO Call this in the beginning of any new vote
-func NewRepOpinions(peers []string) RepOpinions {
-	repOps := make(RepOpinions)
-	for _, peer := range peers {
-		repOps.Trust(peer)
-	}
-
-	return repOps
-}
-
 func (opinions RepOpinions) Suspect(peer string) {
 	// also add peer to blacklist
 	opinions[peer] = -1
 }
 
-// TODO trust all new peers to add them to the map
 func (opinions RepOpinions) Trust(peer string) {
 	// Opinion can only change from trusting to suspecting,
 	// not the other way around
@@ -48,8 +36,10 @@ func (opinions RepOpinions) hasInvalidOpinion() bool {
 	return false
 }
 
-func (opinions RepOpinions) equals(otherOpinions RepOpinions) bool {
-	return reflect.DeepEqual(opinions, otherOpinions)
+func (opinions RepOpinions) completePeers(peers map[string]bool) {
+	for peer := range peers {
+		opinions.Trust(peer)
+	}
 }
 
 // Blacklist -------------------------------------------------------------------------------------
@@ -122,6 +112,13 @@ func (repInfo ReputationInfo) AddPeerOpinion(pkg *ReputationPacket, pollID PollK
 func (repInfo ReputationInfo) AddReputations(pollID PollKey) {
 
 	repTable := make(map[string]int)
+	peers := make(map[string]bool)
+
+	for _, peerOpinions := range repInfo.PeersOpinions[pollID] {
+		for peer := range peerOpinions {
+			peers[peer] = true
+		}
+	}
 
 	for _, peerOpinions := range repInfo.PeersOpinions[pollID] {
 
@@ -130,6 +127,8 @@ func (repInfo ReputationInfo) AddReputations(pollID PollKey) {
 		if peerOpinions.hasInvalidOpinion() {
 			continue
 		}
+
+		peerOpinions.completePeers(peers)
 
 		for peer, rep := range peerOpinions {
 			tempUpdateRep(peer, rep, repTable)
@@ -191,7 +190,6 @@ func (g *Gossiper) SendReputationPacket(msg *ReputationPacket, sig *Signature, f
 	}
 }
 
-// TODO use this somewhere!!!!
 func (g *Gossiper) SendReputation(key PollKey, fromPeer *net.UDPAddr) {
 	pkg := ReputationPacket{
 		PollID:   key,

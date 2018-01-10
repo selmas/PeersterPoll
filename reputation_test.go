@@ -2,6 +2,9 @@ package pollparty
 
 import (
 	"testing"
+	"crypto/ecdsa"
+	"math/big"
+	"fmt"
 )
 
 /*func TestMain(m *testing.M) {
@@ -28,78 +31,6 @@ func TestBlacklist(t *testing.T) {
 
 }
 
-/*func TestOpinions(t *testing.T) {
-	repTabA := NewReputationTable()
-	repTabB := NewReputationTable()
-	repTabC := NewReputationTable()
-
-	peerA := "peerA"
-	peerB := "peerB"
-	peerC := "peerC"
-
-	opinionsA := make(RepOpinions)
-	opinionsB := make(RepOpinions)
-	opinionsC := make(RepOpinions)
-
-	opinionsA.Trust(peerA)
-	opinionsA.Trust(peerB)
-	opinionsA.Suspect(peerC)
-
-	opinionsB.Trust(peerA)
-	opinionsB.Trust(peerB)
-	opinionsB.Suspect(peerC)
-
-	opinionsC.Suspect(peerA)
-	opinionsC.Suspect(peerB)
-	opinionsC.Trust(peerC)
-
-	listOpinions := make([]RepOpinions, 0)
-	listOpinions = append(listOpinions, opinionsA)
-	listOpinions = append(listOpinions, opinionsB)
-	listOpinions = append(listOpinions, opinionsC)
-
-	repTabA.AddReputations(listOpinions)
-	repTabB.AddReputations(listOpinions)
-	repTabC.AddReputations(listOpinions)
-
-	repTabA.AddReputations(listOpinions)
-	repTabB.AddReputations(listOpinions)
-	repTabC.AddReputations(listOpinions)
-
-	repTabA.AddReputations(listOpinions)
-	repTabB.AddReputations(listOpinions)
-	repTabC.AddReputations(listOpinions)
-
-	repTabA.AddReputations(listOpinions)
-	repTabB.AddReputations(listOpinions)
-	repTabC.AddReputations(listOpinions)
-
-	//fmt.Println("Table A\n", repTabA)
-	//fmt.Println("\nTable B\n", repTabB)
-	//fmt.Println("\nTable C\n", repTabC)
-
-	bl := make(Blacklist)
-
-	bl.UpdateBlacklist(repTabA)
-
-	//fmt.Println(bl)
-
-	if bl.IsBlacklisted(peerA) || bl.IsBlacklisted(peerB) {
-		t.Error("Blacklisted peer but shouldn't have")
-	}
-
-	if !bl.IsBlacklisted(peerC) {
-		t.Error("Didn't blacklist peer but should have")
-	}
-
-	if repTabA.ReputationPkts[peerA].Value != 0 ||
-		repTabA.ReputationPkts[peerB].Value != 0 ||
-		repTabA.ReputationPkts[peerC].Value != -4 {
-
-		t.Error("Wrong reputations")
-	}
-}*/
-
 func TestTempUpdate(t *testing.T) {
 	peerA := "peerA"
 	peerB := "peerB"
@@ -115,9 +46,10 @@ func TestTempUpdate(t *testing.T) {
 	}
 }
 
-/*func TestReputationInfo_AddReputations(t *testing.T) {
+func TestReputationInfo_AddReputations(t *testing.T) {
 	peerA := "peerA"
 	peerB := "peerB"
+	peerC := "peerC"
 
 	repInfo := NewReputationInfo()
 
@@ -127,16 +59,38 @@ func TestTempUpdate(t *testing.T) {
 	}
 
 	repsA := make(RepOpinions)
+
+	repsA.Trust(peerA)
+	repsA.Suspect(peerB)
+
+	pkgA := &ReputationPacket{
+		Signer: ecdsa.PublicKey{
+			Curve: Curve(),
+			X:     &big.Int{},
+			Y:     nil,
+		},
+		PollID:   pollKey,
+		Opinions: repsA,
+	}
+
 	repsB := make(RepOpinions)
 
-	repsA[peerA] = +1
-	repsA[peerB] = +1
+	repsB.Suspect(peerA)
+	repsB.Suspect(peerB)
+	repsB.Suspect(peerC)
 
-	repsB[peerA] = +1
-	repsB[peerB] = -1
+	pkgB := &ReputationPacket{
+		Signer: ecdsa.PublicKey{
+			Curve: Curve(),
+			Y:     &big.Int{},
+			X:     nil,
+		},
+		PollID:   pollKey,
+		Opinions: repsB,
+	}
 
-	repInfo.AddPeerOpinion(repsA,pollKey)
-	repInfo.AddPeerOpinion(repsB,pollKey)
+	repInfo.AddPeerOpinion(pkgA, pollKey)
+	repInfo.AddPeerOpinion(pkgB, pollKey)
 
 	if len(repInfo.PeersOpinions[pollKey]) != 2 {
 		t.Error()
@@ -144,69 +98,10 @@ func TestTempUpdate(t *testing.T) {
 
 	repInfo.AddReputations(pollKey)
 
-	if repInfo.IsBlacklisted(peerA) || repInfo.IsBlacklisted(peerB) {
+	if repInfo.IsBlacklisted(peerA) || !repInfo.IsBlacklisted(peerB) || repInfo.IsBlacklisted(peerC) {
 		t.Error()
 	}
 
-	pollKey = PollKey{
-		Origin: ecdsa.PublicKey{},
-		ID:     4,
-	}
+	fmt.Println(repInfo.Blacklist)
 
-	repsA[peerA] = +5
-	repsA[peerB] = -1
-
-	repsB[peerA] = -1
-	repsB[peerB] = +1
-
-	repsC := make(RepOpinions)
-	repsC[peerA] = -1
-	repsC[peerB] = -1
-
-	repInfo.AddPeerOpinion(repsA,pollKey)
-	repInfo.AddPeerOpinion(repsB,pollKey)
-	repInfo.AddPeerOpinion(repsC,pollKey)
-
-	repInfo.AddReputations(pollKey)
-
-	if !repInfo.IsBlacklisted(peerA) || repInfo.IsBlacklisted(peerB) {
-		t.Error()
-	}
-
-}*/
-
-/*func TestReputationInfo_AddReputations2(t *testing.T) {
-	peerA := "peerA"
-	//peerB := "peerB"
-	//peerC := "peerC"
-
-	g := &Gossiper{
-
-	}
-
-	g2 := &Gossiper{
-
-	}
-
-	rep := ReputationPacket{
-		Signer: ecdsa.PublicKey{
-
-		},
-	}
-
-	signature, _ := repSignature(g2,rep)
-	pkg := GossipPacket{
-		Signature: &signature,
-	}
-
-	fromPeer := peerA
-
-	if !repSignatureValid(g, pkg) {
-		g.ReputationPkts.Suspect(fromPeer)
-	}
-
-	pollID := pkg.Reputation.PollID
-
-	// store Reputation in receivedOpinions[poll]
-	g.ReputationPkts.AddPeerOpinion(pkg.Reputation, pollID)
-}*/
+}
