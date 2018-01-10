@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	pkg "github.com/ValerianRousset/Peerster"
 	"log"
+	"math/big"
 )
 
 func key_new(s Settings, args []string) {
@@ -20,7 +21,9 @@ func key_new(s Settings, args []string) {
 		log.Fatal(err)
 	}
 
-	keys = append(keys, k.PublicKey)
+	var arr [2]big.Int
+	arr[0], arr[1] = *k.PublicKey.X, *k.PublicKey.Y
+	keys = append(keys, arr)
 
 	err = pkg.PrivateKeySave(pkg.PrivateKeyFileName(origin), *k)
 	if err != nil {

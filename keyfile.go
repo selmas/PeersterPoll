@@ -1,16 +1,16 @@
 package pollparty
 
 import (
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"errors"
-	"os"
+	"io/ioutil"
 	"math/big"
+	"os"
 )
 
 const KeyFileName = "keys"
 
-func KeyFileSave(keys []ecdsa.PublicKey) error {
+func KeyFileSave(keys [][2]big.Int) error {
 	file, err := os.Create(KeyFileName)
 	if err != nil {
 		return err
@@ -18,7 +18,7 @@ func KeyFileSave(keys []ecdsa.PublicKey) error {
 	defer file.Close()
 
 	for _, k := range keys {
-		bytes := elliptic.Marshal(k.Curve, k.X, k.Y)
+		bytes := elliptic.Marshal(Curve(), &k[0], &k[1])
 
 		_, err = file.Write(bytes)
 		if err != nil {
@@ -36,20 +36,17 @@ func KeyFileLoad() ([][2]big.Int, error) {
 	if err != nil {
 		return ret, err
 	}
-	defer file.Close()
+	file.Close()
+
+	content, err := ioutil.ReadFile(KeyFileName)
+	if err != nil {
+		return ret, err
+	}
 
 	blockLen := 1 + 2*((Curve().Params().BitSize+7)>>3) // taken from stdlib == header + 2 * sizeof(big.Int)
-	block := make([]byte, 0, blockLen)
 
-	for {
-		count, err := file.Read(block)
-		if err != nil {
-			return ret, err
-		}
-
-		if count == 0 {
-			break
-		}
+	for i := 0; i < len(content)/blockLen; i++ {
+		block := content[i*blockLen : (i+1)*blockLen]
 
 		x, y := elliptic.Unmarshal(Curve(), block)
 		if x == nil || y == nil {
