@@ -92,13 +92,29 @@ func (s *PollSet) Store(pkg PollPacket) bool {
 	}
 
 	if pkg.Commitment != nil {
-		info.Commitments = append(info.Commitments, *pkg.Commitment)
-		added = true // TODO really check
+		exist := false
+		for _,com := range info.Commitments{
+			if string(com.Hash[:]) == string(pkg.Commitment.Hash[:]) {
+				exist = true
+			}
+		}
+		if !exist{
+			info.Commitments = append(info.Commitments, *pkg.Commitment)
+			added = true
+		}
 	}
 
 	if pkg.Vote != nil {
-		info.Votes = append(info.Votes, *pkg.Vote)
-		added = true // TODO really check
+		exist := false
+		for _, vote := range info.Votes{
+			if string(vote.Salt[:]) == string(pkg.Vote.Salt[:]) && vote.Option == pkg.Vote.Option {
+				exist = true
+			}
+		}
+		if !exist{
+			info.Votes = append(info.Votes, *pkg.Vote)
+			added = true
+		}
 	}
 
 	s.m[pkg.ID.Pack()] = info
